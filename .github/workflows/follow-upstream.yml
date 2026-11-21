@@ -1,0 +1,54 @@
+name: Follow upstream
+
+# Daily: when sarahahzub/WebOS-Chromium publishes a release that has no LumaBrowser build yet, rebrand it
+# (luma/repack.py) and publish it as v<version>-luma1, which the TV's updater installs.
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency: follow-upstream
+
+jobs:
+  follow:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM: sarahahzub/WebOS-Chromium
+    steps:
+      # GitHub disables a scheduled workflow after 60 days without repository activity; enabling it again through the
+      # API restarts that clock without a commit.
+      - name: Keep the schedule alive
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/follow-upstream.yml/enable"
+
+      - uses: actions/checkout@v4
+
+      - name: Find the upstream release
+        id: up
+        run: |
+          tag=$(gh api "repos/$UPSTREAM/releases/latest" --jq .tag_name)
+          ver=${tag#v}
+          ours="v$ver-luma1"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+          echo "ours=$ours" >> "$GITHUB_OUTPUT"
+          if gh release view "$ours" > /dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "$ours already published"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "upstream $tag has no LumaBrowser build yet"
+          fi
+
+      - name: Rebrand and publish
+        if: steps.up.outputs.new == 'true'
+        run: |
+          gh release download "${{ steps.up.outputs.tag }}" -R "$UPSTREAM" -p 'io.github.sarahahzub.chromium_*_arm.ipk' -D up
+          python3 luma/repack.py --from up/*.ipk --version "${{ steps.up.outputs.ver }}" --out dl
+          sum=$(sha256sum dl/*.ipk | cut -d' ' -f1)
+          gh release create "${{ steps.up.outputs.ours }}" dl/*.ipk --title "LumaBrowser ${{ steps.up.outputs.ver }}" \
+            --notes "Upstream WebOS-Chromium ${{ steps.up.outputs.tag }}, rebranded as LumaBrowser (org.nphil.lumabrowser). sha256 $sum"

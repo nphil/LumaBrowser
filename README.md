@@ -17,6 +17,11 @@ upstream release IPK and leaves the browser itself unchanged:
 python3 luma/repack.py --from io.github.sarahahzub.chromium_1.0.0_arm.ipk --version 1.0.0 --out dl/
 ```
 
+`.github/workflows/follow-upstream.yml` checks upstream daily and publishes each new upstream release, rebranded, as
+`v<version>-luma1`. On a rooted TV, `luma/tv-update.sh` (installed as a Homebrew Channel `init.d` script that runs
+`tv-update.sh boot`) installs a new release within 6 hours, only while the browser is closed and only when the download
+matches the release's sha256.
+
 The rest of this README is upstream's and describes the browser.
 
 ---
