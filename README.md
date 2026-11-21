@@ -1,10 +1,23 @@
-<p align="center"><img src="assets/icon.png" width="96" alt="Chromium icon"></p>
+<p align="center"><img src="luma/icons/icon160.png" width="96" alt="LumaBrowser icon"></p>
 
-<h1 align="center">WebOS Chromium</h1>
+<h1 align="center">LumaBrowser</h1>
 
-<p align="center"><b>Chromium Browser</b>: Chromium with the full Chrome interface, running natively on LG webOS TVs.<br>
-GPU drawing and hardware video. No root needed.<br>
-<b>Runs on webOS 4.4 and newer.</b></p>
+<p align="center">LumaTV's browser: a fork of <a href="https://github.com/sarahahzub/WebOS-Chromium">WebOS-Chromium</a>,
+Chromium with the full Chrome interface running natively on LG webOS TVs.</p>
+
+---
+
+## LumaBrowser
+
+LumaBrowser installs as `org.nphil.lumabrowser` with its own name, icon and splash (`luma/icons`, drawn by
+`luma/gen-icons.py` in LumaTV's icon style). Until LumaBrowser has its own Chromium build, `luma/repack.py` rebrands an
+upstream release IPK and leaves the browser itself unchanged:
+
+```
+python3 luma/repack.py --from io.github.sarahahzub.chromium_1.0.0_arm.ipk --version 1.0.0 --out dl/
+```
+
+The rest of this README is upstream's and describes the browser.
 
 ---
 
