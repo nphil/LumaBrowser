@@ -1,0 +1,133 @@
+/* LumaBrowser mocks: the LumaTV theme tokens, one place for every colour literal.
+ * Role names follow rustui/tokens/src/palettes.json (canvas, sheet, scrim, glass, glassRaised, edge, edgeRaised, ink, ink2, ink3,
+ * focus, focusInk, trackOff, accent, accentInk, positive, warning, danger, info, live) with a --lu- prefix, as Lucent's tokens.css does.
+ * The TV profile numbers are LumaTV's theme.json (radii, type, target 64, row 80, safe area 96 x 54 at 1920 x 1080).
+ * Both mocks read only these variables; ?theme=dark|light|ocean|sand selects a palette, ?text=200 doubles the type. */
+
+@font-face {
+  font-family: "Manrope";
+  src: url("fonts/Manrope-Variable.ttf") format("truetype");
+  font-weight: 200 800;
+  font-display: block;
+}
+
+/* ---- palettes (LumaTV: Rose Pine dark and light; Ocean; Sand light) -------------------------------------------- */
+/* .on-media: chrome over full-screen video and pictures always takes the dark palette, so a cream bar never sits on a night scene */
+:root, [data-theme="dark"], [data-theme="light"] .on-media, [data-theme="sand"] .on-media {
+  color-scheme: dark;
+  --lu-canvas: #191724; --lu-sheet: #1F1D2EE8; --lu-scrim: #120E1A6B; --lu-glass: #120E1A66; --lu-glass-raised: #2C263A8F;
+  --lu-edge: #FFFFFF1F; --lu-edge-raised: #FFFFFF33;
+  --lu-ink: #F2EFF6; --lu-ink2: #F2EFF6B1; --lu-ink3: #F2EFF66B;
+  --lu-focus: #F2EFF6FA; --lu-focus-ink: #17131F; --lu-track-off: #FFFFFF29;
+  --lu-accent: #A99DF5; --lu-accent-ink: #17131F;
+  --lu-positive: #9CCFD8; --lu-warning: #F6C177; --lu-danger: #EF8AA6; --lu-info: #9CCFD8; --lu-live: #EF8AA6;
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --lu-canvas: #FAF4ED; --lu-sheet: #FFFAF3EB; --lu-scrim: #FAF4ED4D; --lu-glass: #FFFFFF85; --lu-glass-raised: #FFFFFFB8;
+  --lu-edge: #2E2A451F; --lu-edge-raised: #2E2A4533;
+  --lu-ink: #2E2A45; --lu-ink2: #2E2A45D5; --lu-ink3: #2E2A4587;
+  --lu-focus: #FFFFFFF2; --lu-focus-ink: #2E2A45; --lu-track-off: #2E2A451F;
+  --lu-accent: #765E92; --lu-accent-ink: #FFFFFF;
+  --lu-positive: #286983; --lu-warning: #925B0F; --lu-danger: #A14D65; --lu-info: #416F77; --lu-live: #A14D65;
+}
+[data-theme="ocean"] {
+  color-scheme: dark;
+  --lu-canvas: #06202E; --lu-sheet: #0B3145E8; --lu-scrim: #03121A6B; --lu-glass: #03121A66; --lu-glass-raised: #134A668F;
+  --lu-edge: #FFFFFF1F; --lu-edge-raised: #FFFFFF33;
+  --lu-ink: #F1F9FC; --lu-ink2: #F1F9FCC7; --lu-ink3: #F1F9FC6B;
+  --lu-focus: #F1F9FCFA; --lu-focus-ink: #03151D; --lu-track-off: #FFFFFF29;
+  --lu-accent: #70D7F4; --lu-accent-ink: #03151D;
+  --lu-positive: #84DABC; --lu-warning: #F2C56B; --lu-danger: #F8B9BF; --lu-info: #ABCCF8; --lu-live: #F8B9BF;
+}
+[data-theme="sand"] {
+  color-scheme: light;
+  --lu-canvas: #EEE3CC; --lu-sheet: #FAF4E6EB; --lu-scrim: #EEE3CC4D; --lu-glass: #FFFFFF85; --lu-glass-raised: #FFFFFFB8;
+  --lu-edge: #2B261C1F; --lu-edge-raised: #2B261C33;
+  --lu-ink: #2B261C; --lu-ink2: #2B261CD2; --lu-ink3: #2B261C85;
+  --lu-focus: #FFFFFFF2; --lu-focus-ink: #2B261C; --lu-track-off: #2B261C1F;
+  --lu-accent: #7C5F21; --lu-accent-ink: #FFFFFF;
+  --lu-positive: #476D2A; --lu-warning: #8A570A; --lu-danger: #A6442E; --lu-info: #2B6D6D; --lu-live: #A6442E;
+}
+
+/* ---- mode lighting: achromatic shades and highlights, one set per mode ---------------------------------------------- */
+:root, [data-theme="dark"], [data-theme="ocean"], [data-theme="light"] .on-media, [data-theme="sand"] .on-media {
+  --lu-shadow-rest: 0 28px 72px rgba(0,0,0,.40), 0 4px 14px rgba(0,0,0,.20);
+  --lu-shadow-raised: 0 22px 52px rgba(0,0,0,.48), 0 6px 14px rgba(0,0,0,.30);
+  --lu-shadow-pressed: 0 6px 14px rgba(0,0,0,.30);
+  --lu-highlight-rest: inset 0 1px 0 rgba(255,255,255,.10);
+  --lu-highlight-raised: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.22);
+  --lu-sheen: linear-gradient(135deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.05) 38%, transparent 60%);
+  --lu-wall-scrim: linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.18) 50%, rgba(0,0,0,.46));
+  --lu-raise-fill: color-mix(in srgb, var(--lu-sheet) 86%, var(--lu-ink) 14%);
+  --lu-well: color-mix(in srgb, var(--lu-canvas) 62%, transparent);
+  --lu-knob-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+[data-theme="light"], [data-theme="sand"] {
+  --lu-shadow-rest: 0 24px 60px rgba(60,40,70,.16);
+  --lu-shadow-raised: 0 18px 44px rgba(60,40,70,.22), 0 6px 14px rgba(60,40,70,.12);
+  --lu-shadow-pressed: 0 6px 14px rgba(60,40,70,.14);
+  --lu-highlight-rest: inset 0 1px 0 rgba(255,255,255,.60);
+  --lu-highlight-raised: inset 0 1px 0 rgba(255,255,255,.90), inset 0 -1px 0 rgba(0,0,0,.10);
+  --lu-sheen: linear-gradient(135deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,.18) 38%, transparent 60%);
+  --lu-wall-scrim: linear-gradient(180deg, rgba(23,19,31,.06), rgba(23,19,31,.10) 50%, rgba(255,255,255,.10));
+  --lu-raise-fill: var(--lu-focus);
+  --lu-well: color-mix(in srgb, var(--lu-ink) 10%, transparent);
+  --lu-knob-shadow: 0 2px 6px rgba(60,40,70,.30);
+}
+
+/* ---- the pointer is white with a dark keyline in every theme; media surfaces are black ------------------------------------ */
+:root {
+  --lu-cursor: #FFFFFF; --lu-cursor-line: #17131F;
+  --lu-media: #000000; --lu-media-ink: #FFFFFF;
+}
+
+/* ---- derived washes: computed from the roles, never new colours -------------------------------------------------------- */
+:root, .on-media {
+  --lu-wash-hover: color-mix(in srgb, var(--lu-ink) 4%, transparent);
+  --lu-wash-focus: color-mix(in srgb, var(--lu-ink) 6%, transparent);
+  --lu-wash-selected: color-mix(in srgb, var(--lu-ink) 6%, transparent);
+  --lu-ink-wash: color-mix(in srgb, var(--lu-ink) 9%, transparent);
+  --lu-backdrop: color-mix(in srgb, var(--lu-canvas) 97%, transparent);   /* scrim.hidesMin: a confirmation hides the page */
+  --lu-halo: 0 0 0 1px color-mix(in srgb, var(--lu-accent) 45%, transparent), 0 12px 36px color-mix(in srgb, var(--lu-accent) 30%, transparent);
+  --lu-rim: color-mix(in srgb, var(--lu-edge-raised) 60%, transparent);   /* hover: 60 % of edgeRaised */
+}
+
+/* ---- TV profile numbers (1920 x 1080 reference pixels) ------------------------------------------------------------- */
+:root {
+  --lu-font: "Manrope", system-ui, sans-serif;
+  --ts: 1;                                   /* text scale: 1 at 100 %, 2 at 200 % */
+  --k: calc(1 + (var(--ts) - 1) * .5);       /* targets grow half as fast as the text, never shrink */
+  --lu-size-display: calc(92px * var(--ts));
+  --lu-size-title: calc(40px * var(--ts));
+  --lu-size-body: calc(28px * var(--ts));
+  --lu-size-label: calc(26px * var(--ts));
+  --lu-size-caption: calc(24px * var(--ts));
+  --lu-icon: calc(32px * var(--ts));
+  --lu-icon-s: calc(24px * var(--ts));
+  --lu-target: calc(64px * var(--k));
+  --lu-row: calc(80px * var(--k));
+  --lu-edge-x: 96px;                         /* safe area: 5 % of the width and of the height */
+  --lu-edge-y: 54px;
+  --lu-radius-sheet: 34px; --lu-radius-card: 26px; --lu-radius-tile: 22px; --lu-radius-row: 22px; --lu-radius-control: 18px; --lu-radius-pill: 999px;
+  --lu-blur: 30px;
+  --lu-ease: cubic-bezier(.33, 1, .68, 1);   /* OutCubic */
+  --lu-ms-press: 90ms; --lu-ms-focus: 150ms; --lu-ms-layer: 220ms; --lu-ms-exit: 180ms;
+  --lu-scale-focus: 1.04; --lu-scale-row: 1.02; --lu-scale-card: 1.03; --lu-scale-press: .97; --lu-lift: 4px;
+}
+[data-text="200"] { --ts: 2; }
+
+/* ---- phone profile (LumaRemoteKit: KeyMetrics 56 / gap 12, radii surface 24 / control 14; 390 x 844 portrait) -------------- */
+:root {
+  --lu-ph-key: 56px; --lu-ph-gap: 12px; --lu-ph-glyph: 22px; --lu-ph-pad: 16px;
+  --lu-ph-radius-surface: 24px; --lu-ph-radius-control: 14px;
+  --lu-ph-size-title: calc(20px * var(--ts)); --lu-ph-size-body: calc(17px * var(--ts)); --lu-ph-size-sub: calc(15px * var(--ts)); --lu-ph-size-caption: calc(12px * var(--ts));
+  --lu-ph-surface: color-mix(in srgb, var(--lu-canvas) 94%, var(--lu-ink) 6%);
+  --lu-ph-raised: color-mix(in srgb, var(--lu-canvas) 88%, var(--lu-ink) 12%);
+}
+
+/* ---- the wallpaper belongs to the palette; the url() is resolved against this file -------------------------------------------- */
+.lu-wallpaper { background: var(--lu-wall-scrim), url("wall-rose-pine.jpg") center / cover no-repeat, var(--lu-canvas); }
+[data-theme="light"] .lu-wallpaper { background: var(--lu-wall-scrim), url("wall-rose-pine-light.jpg") center / cover no-repeat, var(--lu-canvas); }
+[data-theme="ocean"] .lu-wallpaper { background: var(--lu-wall-scrim), url("wall-ocean.jpg") center / cover no-repeat, var(--lu-canvas); }
+[data-theme="sand"] .lu-wallpaper { background: var(--lu-wall-scrim), url("wall-sand.jpg") center / cover no-repeat, var(--lu-canvas); }

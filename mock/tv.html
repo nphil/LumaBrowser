@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>LumaBrowser on the TV</title>
+<meta name="viewport" content="width=1920">
+<script>
+/* ?theme=dark|light|ocean|sand  ?text=200  ?motion=reduced  ?live=1 (runs the entrance and caret motion)  ?safe=1 (draws the safe area) */
+(function () {
+  var q = new URLSearchParams(location.search), r = document.documentElement;
+  r.dataset.theme = q.get('theme') || 'dark';
+  if (q.get('text') === '200') r.dataset.text = '200';
+  if (q.get('motion') === 'reduced') r.dataset.motion = 'reduced';
+  if (q.has('live')) r.dataset.live = '';
+  if (q.has('safe')) r.dataset.safe = '';
+})();
+</script>
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="assets/pages.css">
+<style>
+/* Every colour, radius and type size below is a LumaTV token from assets/theme.css; websites' own styling lives in assets/pages.css. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--lu-media); }
+body { font: 500 var(--lu-size-body)/1.25 var(--lu-font); color: var(--lu-ink); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; }
+.stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--lu-canvas); transform-origin: 0 0; transform: scale(var(--fit, 1)); }
+.screen { position: absolute; inset: 0; display: none; overflow: hidden; }
+.screen.on { display: block; }
+.screen.on-media { background: var(--lu-media); color: var(--lu-ink); }
+.i { width: var(--lu-icon); height: var(--lu-icon); fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.i.s { width: var(--lu-icon-s); height: var(--lu-icon-s); }
+.abs { position: absolute; }
+.grow { flex: 1; min-width: 0; }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ink2 { color: var(--lu-ink2); }
+.num { font-variant-numeric: tabular-nums; }
+.t-title { font-size: var(--lu-size-title); font-weight: 700; line-height: 1.15; }
+.t-display { font-size: var(--lu-size-display); font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.t-label { font-size: var(--lu-size-label); font-weight: 600; }
+.cap { font-size: var(--lu-size-caption); font-weight: 600; color: var(--lu-ink2); }
+.pos { color: var(--lu-positive); } .warn { color: var(--lu-warning); } .bad { color: var(--lu-danger); } .inf { color: var(--lu-info); }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; flex: none; }
+
+/* ---- materials ---------------------------------------------------------------------------------------------- */
+.sheet { background: var(--lu-sheet); backdrop-filter: blur(var(--lu-blur)) saturate(1.1); border: 1px solid var(--lu-edge); box-shadow: var(--lu-highlight-rest), var(--lu-shadow-rest); }
+.glass { background: var(--lu-glass); backdrop-filter: blur(var(--lu-blur)) saturate(1.1); border: 1px solid var(--lu-edge); box-shadow: var(--lu-highlight-rest), var(--lu-shadow-rest); }
+.dim { position: absolute; inset: 0; background: var(--lu-scrim); }
+.dim.page-dim { background: color-mix(in srgb, var(--lu-canvas) 62%, transparent); }
+.dim.hide { background: var(--lu-backdrop); }
+.dim.media { background: linear-gradient(180deg, color-mix(in srgb, var(--lu-media) 62%, transparent), transparent 22%, transparent 58%, color-mix(in srgb, var(--lu-media) 74%, transparent)); }
+.dim.deep { background: color-mix(in srgb, var(--lu-canvas) 86%, transparent); }
+.veil { position: absolute; z-index: 12; left: 0; right: 0; top: 0; height: 240px; pointer-events: none; opacity: .8; background: linear-gradient(180deg, var(--lu-scrim), transparent); }
+
+/* ---- controls: rest, hover (a cue), focus (landing light), pressed ----------------------------------------------- */
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 14px; flex: none; height: var(--lu-target); min-width: var(--lu-target); padding: 0 26px; border-radius: var(--lu-radius-pill); font-size: var(--lu-size-label); font-weight: 600; white-space: nowrap; color: var(--lu-ink); transition: transform var(--lu-ms-focus) var(--lu-ease), opacity var(--lu-ms-focus) var(--lu-ease); }
+.btn.ic { width: var(--lu-target); padding: 0; }
+.btn.fill { background: var(--lu-ink-wash); }
+.btn.primary { background: var(--lu-accent); color: var(--lu-accent-ink); }
+.btn.danger { background: var(--lu-danger); color: var(--lu-accent-ink); }
+.btn.tonebad { color: var(--lu-danger); }
+.btn.sel, .row.sel, .tile.sel { background: var(--lu-wash-selected); }
+.h { background-color: var(--lu-wash-hover); box-shadow: inset 0 0 0 1px var(--lu-rim); }
+.f { z-index: 3; transform: translateY(calc(-1 * var(--lu-lift))) scale(var(--sc, var(--lu-scale-focus))); background: var(--lu-sheen), var(--lu-raise-fill); border-color: var(--lu-edge-raised); box-shadow: var(--lu-highlight-raised), var(--lu-shadow-raised), var(--lu-halo); }
+.f::after { content: ""; position: absolute; left: 50%; width: clamp(28px, 46%, 140px); margin-left: calc(clamp(28px, 46%, 140px) / -2); bottom: 7px; height: 2px; border-radius: 2px; background: var(--lu-ink); }
+.primary.f { background: linear-gradient(135deg, color-mix(in srgb, var(--lu-focus) 16%, transparent), transparent 60%), var(--lu-accent); }
+.danger.f { background: linear-gradient(135deg, color-mix(in srgb, var(--lu-focus) 16%, transparent), transparent 60%), var(--lu-danger); }
+.primary.f::after, .danger.f::after { background: var(--lu-accent-ink); }
+.pr { transform: scale(var(--lu-scale-press)); box-shadow: var(--lu-shadow-pressed); }
+.row { --sc: var(--lu-scale-row); }
+.card, .tile { --sc: var(--lu-scale-card); }
+.key { --sc: 1.08; }
+
+.row { position: relative; display: flex; align-items: center; gap: 20px; min-height: var(--lu-row); padding: 8px 24px; border-radius: var(--lu-radius-row); font-size: var(--lu-size-body); font-weight: 500; transition: transform var(--lu-ms-focus) var(--lu-ease); }
+.row .meta { font-size: var(--lu-size-caption); color: var(--lu-ink2); font-weight: 500; }
+.row.sel::before { content: ""; position: absolute; left: 0; top: 24px; bottom: 24px; width: 5px; border-radius: 3px; background: var(--lu-accent); }
+.row .btn { margin-right: -12px; }
+.hr { height: 1px; margin: 8px 24px; background: var(--lu-edge); }
+.sw { position: relative; flex: none; width: 88px; height: 48px; border-radius: 24px; background: var(--lu-track-off); box-shadow: inset 0 0 0 1px var(--lu-edge); }
+.sw::before { content: ""; position: absolute; top: 6px; left: 6px; width: 36px; height: 36px; border-radius: 50%; background: var(--lu-ink); box-shadow: var(--lu-knob-shadow); }
+.sw.on { background: var(--lu-accent); box-shadow: none; }
+.sw.on::before { left: 46px; background: var(--lu-accent-ink); }
+.sw .i { position: absolute; left: 52px; top: 12px; width: 24px; height: 24px; color: var(--lu-accent); display: none; }
+.sw.on .i { display: block; }
+.stepper { display: flex; align-items: center; gap: 8px; margin-right: -12px; }
+.stepper b { min-width: 120px; text-align: center; font-size: var(--lu-size-body); font-weight: 700; }
+
+/* ---- the bar, popovers, status ------------------------------------------------------------------------------- */
+.bar { position: absolute; z-index: 20; left: var(--lu-edge-x); top: var(--lu-edge-y); width: calc(1920px - 2 * var(--lu-edge-x)); min-height: calc(var(--lu-target) + 16px); display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 40px; }
+.omni { position: relative; flex: 1; min-width: 0; height: var(--lu-target); display: flex; align-items: center; gap: 14px; padding: 0 28px; border-radius: 32px; background: var(--lu-ink-wash); overflow: hidden; font-size: var(--lu-size-label); }
+.omni .host { font-weight: 700; flex: none; }
+.omni .path { color: var(--lu-ink2); font-weight: 500; min-width: 0; }
+.prog { position: absolute; left: 28px; right: 28px; bottom: 0; height: 4px; border-radius: 2px; background: var(--lu-track-off); }
+.prog::before { content: ""; position: absolute; inset: 0; border-radius: 2px; background: var(--lu-accent); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+.cnt { display: grid; place-items: center; width: calc(40px * var(--k)); height: calc(40px * var(--k)); border-radius: 12px; border: 2px solid currentColor; font-size: var(--lu-size-caption); font-weight: 700; line-height: 1; }
+.pop { position: absolute; z-index: 30; padding: 12px; border-radius: var(--lu-radius-sheet); width: min(calc(var(--w, 640px) + 320px * (var(--ts) - 1)), 1200px); }
+.tip { position: absolute; z-index: 30; min-height: calc(56px * var(--k)); padding: 0 24px; display: flex; align-items: center; border-radius: 28px; font-size: var(--lu-size-caption); font-weight: 600; white-space: nowrap; }
+.status { position: absolute; z-index: 15; left: var(--lu-edge-x); bottom: var(--lu-edge-y); max-width: 1040px; min-height: var(--lu-target); display: flex; align-items: center; gap: 14px; padding: 0 28px; border-radius: 32px; font-size: var(--lu-size-label); font-weight: 600; }
+.status .path { color: var(--lu-ink2); font-weight: 500; min-width: 0; }
+.hints { position: absolute; z-index: 15; right: var(--lu-edge-x); bottom: var(--lu-edge-y); min-height: var(--lu-target); display: flex; align-items: center; gap: 32px; padding: 0 32px; border-radius: 32px; }
+.hint { display: flex; align-items: center; gap: 12px; font-size: var(--lu-size-caption); font-weight: 600; white-space: nowrap; }
+.scrollind { position: absolute; z-index: 12; right: 22px; width: 8px; border-radius: 4px; background: var(--lu-focus); box-shadow: 0 0 0 2px var(--lu-focus-ink); }
+.toast { position: absolute; z-index: 16; min-height: var(--lu-target); display: flex; align-items: center; gap: 14px; padding: 0 28px; border-radius: 32px; font-size: var(--lu-size-label); font-weight: 600; }
+
+/* ---- page-level focus ring: the one outline in the system, because a page has no material to light ------------------------ */
+.ring { position: absolute; z-index: 10; pointer-events: none; box-shadow: 0 0 0 3px var(--lu-focus), 0 0 0 5px var(--lu-focus-ink), 0 0 0 11px color-mix(in srgb, var(--lu-accent) 32%, transparent); }
+.cur { position: absolute; z-index: 60; width: 44px; height: 44px; pointer-events: none; color: var(--lu-cursor); fill: var(--lu-cursor); stroke: var(--lu-cursor-line); filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--lu-cursor-line) 50%, transparent)); }
+.selrect { position: absolute; z-index: 8; background: color-mix(in srgb, var(--lu-accent) 38%, transparent); border-radius: 4px; }
+.handle { position: absolute; z-index: 9; width: 28px; height: 28px; border-radius: 50%; background: var(--lu-accent); box-shadow: 0 0 0 3px var(--lu-focus), var(--lu-knob-shadow); }
+
+/* ---- start ------------------------------------------------------------------------------------------------- */
+.start-search { position: absolute; left: calc(480px - 240px * (var(--ts) - 1)); top: calc(170px - 50px * (var(--ts) - 1)); width: calc(960px + 480px * (var(--ts) - 1)); min-height: calc(88px * var(--k)); display: flex; align-items: center; gap: 22px; padding: 0 12px 0 36px; border-radius: 44px; font-size: var(--lu-size-body); }
+.start-search .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sect { position: absolute; left: 96px; top: 318px; }
+.tiles { position: absolute; left: 96px; top: calc(366px + 30px * (var(--ts) - 1)); width: 1728px; display: grid; grid-template-columns: repeat(4, 408px); gap: 32px 32px; }
+.tile { position: relative; height: calc(200px + 10px * (var(--ts) - 1)); padding: 24px 28px; border-radius: var(--lu-radius-card); display: flex; flex-direction: column; justify-content: space-between; transition: transform var(--lu-ms-focus) var(--lu-ease); }
+.tile .nm { font-size: var(--lu-size-body); font-weight: 700; }
+.tile .hs { font-size: var(--lu-size-caption); color: var(--lu-ink2); font-weight: 500; }
+.dock { position: absolute; left: 50%; bottom: var(--lu-edge-y); transform: translateX(-50%); min-height: calc(var(--lu-target) + 16px); display: flex; gap: 8px; padding: 8px; border-radius: 40px; }
+
+/* ---- omnibox and keyboard ------------------------------------------------------------------------------------ */
+.field { position: absolute; z-index: 20; left: 281px; top: var(--lu-edge-y); width: 1358px; min-height: calc(var(--lu-target) + 16px); display: flex; align-items: center; gap: 20px; padding: 0 8px 0 32px; border-radius: 40px; font-size: var(--lu-size-body); }
+.field .typed { font-weight: 600; }
+.caret { display: inline-block; width: 3px; height: 40px; margin: 0 2px -10px; background: var(--lu-accent); border-radius: 2px; }
+.suggest { position: absolute; z-index: 18; left: 281px; top: calc(var(--lu-edge-y) + var(--lu-target) + 32px); width: 1358px; padding: 12px; border-radius: var(--lu-radius-sheet); }
+.suggest .row .cap { font-weight: 500; }
+.kb { position: absolute; z-index: 25; left: 0; top: 626px; width: 1920px; height: 454px; border-radius: var(--lu-radius-sheet) var(--lu-radius-sheet) 0 0; }
+.kb .grid { position: absolute; left: 281px; top: 20px; width: 1358px; display: grid; grid-template-columns: repeat(12, 104px); grid-auto-rows: 68px; gap: 10px; }
+.key { position: relative; display: flex; align-items: center; justify-content: center; border-radius: var(--lu-radius-control); background: var(--lu-ink-wash); font-size: min(var(--lu-size-body), 36px); font-weight: 600; transition: transform var(--lu-ms-focus) var(--lu-ease); }
+.key.sm { font-size: min(var(--lu-size-caption), 28px); }
+.key.go { background: var(--lu-accent); color: var(--lu-accent-ink); }
+.key.go.f { background: var(--lu-sheen), var(--lu-accent); }
+.key.f::after { bottom: 6px; }
+.key.space { grid-column: 2 / span 10; }
+
+/* ---- tabs -------------------------------------------------------------------------------------------------- */
+.head { position: absolute; z-index: 5; left: var(--lu-edge-x); right: var(--lu-edge-x); top: var(--lu-edge-y); min-height: calc(var(--lu-target) + 16px); display: flex; align-items: center; gap: 24px; }
+.head .t-title { margin-right: 8px; }
+.head .cap { color: var(--lu-ink); }
+.tabgrid { position: absolute; left: var(--lu-edge-x); top: calc(var(--lu-edge-y) + var(--lu-target) + 48px); display: grid; grid-template-columns: repeat(4, 408px); gap: 32px; }
+.tabcard { position: relative; height: 310px; border-radius: var(--lu-radius-card); overflow: hidden; transition: transform var(--lu-ms-focus) var(--lu-ease); }
+.tabcard .thumb { position: relative; height: 230px; overflow: hidden; }
+.tabcard .foot { height: 80px; display: flex; align-items: center; gap: 14px; padding: 0 20px 12px; background: var(--lu-sheet); }
+.tabcard .foot .tt { min-width: 0; }
+.tabcard .foot b { display: block; font-size: var(--lu-size-label); font-weight: 700; line-height: 1.2; }
+.tabcard .foot .tt span { display: block; font-size: var(--lu-size-caption); color: var(--lu-ink2); font-weight: 500; line-height: 1.2; }
+.tabcard .x { position: absolute; z-index: 4; right: 12px; top: 12px; }
+.tabcard.here { background: var(--lu-glass-raised); }
+.tabcard.here .foot::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--lu-accent); flex: none; }
+.tabcard.f::after { bottom: 5px; }
+.tabcard .sleep { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: color-mix(in srgb, var(--lu-canvas) 84%, transparent); }
+.tabcard .sleep .cap { color: var(--lu-ink); }
+.tabcard .badge { position: absolute; z-index: 3; left: 12px; top: 12px; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 4px 18px; border-radius: 24px; font-size: var(--lu-size-caption); font-weight: 600; }
+.tabcard .loadbar { position: absolute; left: 0; right: 0; top: 226px; height: 4px; background: var(--lu-track-off); }
+.tabcard .loadbar::before { content: ""; position: absolute; inset: 0; background: var(--lu-accent); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+.newcard { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; font-size: var(--lu-size-label); font-weight: 600; }
+
+/* ---- dialogs and status sheets -------------------------------------------------------------------------------- */
+.dlg { position: absolute; z-index: 40; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(calc(var(--w, 1100px) + 440px * (var(--ts) - 1)), 1728px); padding: 56px; border-radius: var(--lu-radius-sheet); display: flex; flex-direction: column; gap: 22px; }
+.dlg .origin { display: flex; align-items: center; gap: 12px; }
+.dlg .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 16px; margin-top: 18px; }
+.dlg .hints-in { display: flex; gap: 32px; margin-right: auto; align-items: center; }
+.dlg .lead { font-size: var(--lu-size-body); color: var(--lu-ink2); font-weight: 500; line-height: 1.35; }
+.disc { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: var(--lu-ink-wash); }
+.perm { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
+.perm .row { height: auto; min-height: var(--lu-row); padding: 14px 24px; background: var(--lu-wash-hover); }
+.perm .row b { display: block; font-weight: 700; }
+
+/* ---- viewer and video ------------------------------------------------------------------------------------------ */
+.photo { position: absolute; left: 240px; top: 0; width: 1440px; height: 1080px; object-fit: cover; }
+.still { position: absolute; inset: 0; width: 1920px; height: 1080px; object-fit: cover; }
+.strip { position: absolute; z-index: 20; left: 50%; bottom: var(--lu-edge-y); transform: translateX(-50%); display: flex; align-items: center; gap: 8px; min-height: calc(var(--lu-target) + 16px); padding: 8px; border-radius: 40px; }
+.strip .sp { width: 1px; height: 32px; background: var(--lu-edge); margin: 0 8px; }
+.strip .pos { min-width: 120px; text-align: center; font-size: var(--lu-size-label); font-weight: 700; }
+.player { position: absolute; z-index: 20; left: var(--lu-edge-x); right: var(--lu-edge-x); bottom: var(--lu-edge-y); padding: 24px 24px 16px; border-radius: var(--lu-radius-sheet); }
+.scrub { display: flex; align-items: center; gap: 24px; min-height: 48px; font-size: var(--lu-size-caption); font-weight: 600; }
+.track { position: relative; flex: 1; height: 8px; border-radius: 4px; background: var(--lu-track-off); }
+.track .buf { position: absolute; left: 0; top: 0; bottom: 0; width: 61%; border-radius: 4px; background: color-mix(in srgb, var(--lu-ink) 30%, transparent); }
+.track .played { position: absolute; left: 0; top: 0; bottom: 0; width: 38%; border-radius: 4px; background: var(--lu-accent); }
+.track .knob { position: absolute; left: 38%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; background: var(--lu-ink); box-shadow: var(--lu-knob-shadow); }
+.ctl { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.vtitle { position: absolute; z-index: 20; left: var(--lu-edge-x); top: var(--lu-edge-y); color: var(--lu-media-ink); }
+
+/* ---- settings ---------------------------------------------------------------------------------------------- */
+.nav { position: absolute; left: var(--lu-edge-x); top: calc(var(--lu-edge-y) + var(--lu-target) + 48px); width: 520px; padding: 12px; border-radius: var(--lu-radius-sheet); }
+.pane { position: absolute; left: 648px; top: calc(var(--lu-edge-y) + var(--lu-target) + 48px); width: 1176px; padding: 32px 32px 24px; border-radius: var(--lu-radius-sheet); }
+.pane .row { background: var(--lu-wash-hover); margin-top: 8px; }
+.pane .sub { margin: 22px 8px 6px; }
+.pane header { padding: 0 8px 14px; }
+.pane header p { margin-top: 8px; font-size: var(--lu-size-body); color: var(--lu-ink2); font-weight: 500; }
+.digits { display: flex; gap: 16px; }
+.digit { display: grid; place-items: center; width: 96px; height: 112px; border-radius: var(--lu-radius-tile); background: var(--lu-ink-wash); font-size: var(--lu-size-title); font-weight: 700; }
+.digit.now { background: var(--lu-sheen), var(--lu-raise-fill); box-shadow: var(--lu-highlight-raised), var(--lu-halo); }
+.pad { display: grid; grid-template-columns: repeat(3, 104px); grid-auto-rows: 68px; gap: 10px; }
+
+/* ---- extension card ---------------------------------------------------------------------------------------------- */
+.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px; padding: 18px 24px 22px; }
+.stats .col { display: flex; flex-direction: column; gap: 4px; }
+.stats .col b { font-size: var(--lu-size-title); font-weight: 700; line-height: 1.1; }
+
+/* ---- state shown by the offline sheet -------------------------------------------------------------------------- */
+.countdown { position: relative; height: 6px; border-radius: 3px; background: var(--lu-track-off); overflow: hidden; }
+.countdown::before { content: ""; position: absolute; inset: 0; background: var(--lu-warning); transform-origin: 0 50%; transform: scaleX(var(--p, 1)); }
+
+/* ---- large text (200 %): secondary lines drop, long lists scroll, rows grow; nothing primary is lost ------------------------ */
+[data-text="200"] .tile .hs, [data-text="200"] .tabcard .foot .tt span, [data-text="200"] #s-image-viewer .toast .num { display: none; }
+[data-text="200"] .tile > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-text="200"] .suggest .row:nth-child(n+4) { display: none; }
+[data-text="200"] .pop { max-height: calc(1080px - 2 * var(--lu-edge-y) - var(--lu-target) - 30px); overflow: hidden; }
+[data-text="200"] .stats .grow { display: none; }
+[data-text="200"] .nav, [data-text="200"] .pane { max-height: calc(1080px - var(--lu-edge-y) - var(--lu-target) - 48px - var(--lu-edge-y) - var(--lu-target) - 24px); overflow: hidden; }
+[data-text="200"] .pane .row { flex-wrap: wrap; }
+[data-text="200"] .pane .row .meta { order: 5; flex-basis: 100%; padding-left: calc(var(--lu-icon) + 20px); }
+
+/* ---- motion: transform and opacity only; reduced motion is a short fade --------------------------------------------- */
+@keyframes layer-in { from { opacity: 0; transform: translateY(24px); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+html[data-live] .screen.on .enter { animation: layer-in var(--lu-ms-layer) var(--lu-ease) both; }
+html[data-live] .caret { animation: blink 1.06s steps(1) infinite; }
+html[data-live] .countdown::before { animation: drain 8s linear both; }
+html[data-motion="reduced"] .btn, html[data-motion="reduced"] .row, html[data-motion="reduced"] .key, html[data-motion="reduced"] .tile, html[data-motion="reduced"] .tabcard { transition: none; }
+html[data-live][data-motion="reduced"] .screen.on .enter { animation: fade-in 120ms linear both; }
+html[data-live][data-motion="reduced"] .caret, html[data-live][data-motion="reduced"] .countdown::before { animation: none; }
+
+.safe { display: none; position: absolute; z-index: 100; left: var(--lu-edge-x); top: var(--lu-edge-y); right: var(--lu-edge-x); bottom: var(--lu-edge-y); border: 2px dashed var(--lu-info); pointer-events: none; }
+html[data-safe] .safe { display: block; }
+</style>
+</head>
+<body>
+<script src="assets/icons.js"></script>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="c-arrow" viewBox="0 0 44 44"><path d="M5 3v29l7.6-7 5 11.8 5.2-2.2-5-11.5H29z" stroke-width="2.4" stroke-linejoin="round"/></symbol>
+  <g id="c-hand-shapes"><rect x="13" y="3" width="7" height="24" rx="3.5"/><rect x="20" y="14" width="6.5" height="16" rx="3.25"/><rect x="26.5" y="16" width="6.5" height="15" rx="3.25"/><rect x="33" y="19" width="6" height="13" rx="3"/><rect x="11" y="22" width="28" height="18" rx="8"/><rect x="5.5" y="21" width="14" height="6.5" rx="3.25" transform="rotate(38 9 24)"/></g>
+  <symbol id="c-hand" viewBox="0 0 44 44"><use href="#c-hand-shapes" stroke-width="5" stroke-linejoin="round"/><use href="#c-hand-shapes" stroke="none"/></symbol>
+  <symbol id="c-ibeam" viewBox="0 0 44 44"><path d="M15 6h14M15 38h14M22 6v32" fill="none" stroke-width="6.4" stroke-linecap="round"/><path d="M15 6h14M15 38h14M22 6v32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+</defs></svg>
+
+<main class="stage" id="stage">
+
+<!-- ================= start ================= -->
+<section class="screen lu-wallpaper" id="s-start" data-title="Start page" data-mode="d-pad">
+  <div class="start-search glass f enter" id="start-search">
+    <svg class="i"><use href="#i-search"/></svg>
+    <span class="grow">Search or enter address</span>
+    <button class="btn ic fill" aria-label="Type on phone"><svg class="i"><use href="#i-phone"/></svg></button>
+    <button class="btn ic fill" aria-label="Voice"><svg class="i"><use href="#i-mic"/></svg></button>
+  </div>
+  <h2 class="cap sect">Top sites</h2>
+  <div class="tiles">
+    <a class="tile glass"><span class="fav a" style="width:88px;height:88px;font-size:40px">P</span><span><span class="nm">Pixel Notes</span><br><span class="hs">pixelnotes.dev</span></span></a>
+    <a class="tile glass"><span class="fav b" style="width:88px;height:88px;font-size:40px">N</span><span><span class="nm">Northlight</span><br><span class="hs">northlight.news</span></span></a>
+    <a class="tile glass"><span class="fav c" style="width:88px;height:88px;font-size:40px">T</span><span><span class="nm">Tidepool</span><br><span class="hs">tidepool.video</span></span></a>
+    <a class="tile glass"><span class="fav d" style="width:88px;height:88px;font-size:40px">O</span><span><span class="nm">Open Atlas</span><br><span class="hs">openatlas.org</span></span></a>
+    <a class="tile glass"><span class="fav e" style="width:88px;height:88px;font-size:40px">R</span><span><span class="nm">Rust Book</span><br><span class="hs">rustbook.dev</span></span></a>
+    <a class="tile glass"><span class="fav ff" style="width:88px;height:88px;font-size:40px">H</span><span><span class="nm">Harbor</span><br><span class="hs">harbor.market</span></span></a>
+    <a class="tile glass"><span class="fav g" style="width:88px;height:88px;font-size:40px">K</span><span><span class="nm">Kitchen Table</span><br><span class="hs">kitchentable.cooking</span></span></a>
+    <a class="tile glass"><span class="fav hh" style="width:88px;height:88px;font-size:40px">S</span><span><span class="nm">Skyline</span><br><span class="hs">skyline.fm</span></span></a>
+  </div>
+  <div class="dock glass enter">
+    <button class="btn"><span class="cnt">7</span>Tabs</button>
+    <button class="btn"><svg class="i"><use href="#i-bookmark"/></svg>Bookmarks</button>
+    <button class="btn"><svg class="i"><use href="#i-history"/></svg>History</button>
+    <button class="btn"><svg class="i"><use href="#i-download"/></svg>Downloads</button>
+    <button class="btn"><svg class="i"><use href="#i-sliders"/></svg>Settings</button>
+  </div>
+</section>
+
+<!-- ================= browse, pointer ================= -->
+<section class="screen" id="s-browse-pointer" data-title="Browsing with the pointer" data-mode="pointer">
+  <div class="page" data-page="article" data-scroll="330" data-hover="#pg-method"></div>
+  <div class="scrollind" style="top:260px;height:168px"></div>
+  <div class="status sheet enter"><svg class="i s"><use href="#i-lock"/></svg><span>pixelnotes.dev</span><span class="path ell">/guides/panel-care/method</span></div>
+  <svg class="cur" data-kind="hand" data-on="#pg-method" data-fx=".5" data-fy=".5"><use href="#c-hand"/></svg>
+</section>
+
+<!-- ================= browse, d-pad ================= -->
+<section class="screen" id="s-browse-dpad" data-title="Browsing with the d-pad" data-mode="d-pad">
+  <div class="page" data-page="front" data-scroll="70"></div>
+  <div class="ring" data-around="#pf-c3" data-pad="6" data-radius="20"></div>
+  <div class="status sheet enter"><svg class="i s"><use href="#i-lock"/></svg><span>northlight.news</span><span class="path ell">/tech/the-case-for-slower-software</span></div>
+  <div class="hints sheet enter">
+    <span class="hint"><svg class="i"><use href="#i-key-ok"/></svg>Open</span>
+    <span class="hint"><svg class="i"><use href="#i-key-ok-hold"/></svg>Options</span>
+  </div>
+</section>
+
+<!-- ================= the bar ================= -->
+<section class="screen" id="s-toolbar" data-title="The bar" data-mode="pointer">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="veil"></div>
+  <div class="bar sheet enter" id="bar">
+    <button class="btn ic" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+    <button class="btn ic" aria-label="Forward"><svg class="i"><use href="#i-forward"/></svg></button>
+    <button class="btn ic h" id="btn-stop" aria-label="Stop"><svg class="i"><use href="#i-close"/></svg></button>
+    <div class="omni"><svg class="i s"><use href="#i-lock"/></svg><span class="host">pixelnotes.dev</span><span class="path ell">/guides/panel-care</span><i class="prog" style="--p:.62"></i></div>
+    <button class="btn"><svg class="i pos"><use href="#i-shield-check"/></svg><span class="num">14</span></button>
+    <button class="btn ic" aria-label="Tabs"><span class="cnt">7</span></button>
+    <button class="btn ic" aria-label="Menu"><svg class="i"><use href="#i-menu"/></svg></button>
+  </div>
+  <div class="tip sheet" data-below="#btn-stop" data-align="left" data-gap="14">Stop loading</div>
+  <svg class="cur" data-kind="arrow" data-on="#btn-stop" data-fx=".55" data-fy=".5"><use href="#c-arrow"/></svg>
+</section>
+
+<!-- ================= address entry ================= -->
+<section class="screen" id="s-omnibox" data-title="Address entry" data-mode="d-pad">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="dim deep"></div>
+  <div class="field sheet enter"><svg class="i"><use href="#i-search"/></svg><span class="grow"><span class="typed">pixelnotes</span><i class="caret"></i><span class="ink2">.dev</span></span><button class="btn ic fill" aria-label="Type on phone"><svg class="i"><use href="#i-phone"/></svg></button></div>
+  <div class="suggest sheet enter">
+    <div class="row"><svg class="i"><use href="#i-globe"/></svg><span class="grow">pixelnotes.dev</span><span class="meta">Go to site</span></div>
+    <div class="row"><svg class="i"><use href="#i-search"/></svg><span class="grow"><b>pixelnotes</b> oled burn-in guide</span></div>
+    <div class="row"><svg class="i"><use href="#i-history"/></svg><span class="grow ell">Panel care on a living-room OLED</span><span class="meta">pixelnotes.dev/guides</span></div>
+    <div class="row"><svg class="i"><use href="#i-star"/></svg><span class="grow ell">Pixel Notes: reviews</span><span class="meta">pixelnotes.dev/reviews</span></div>
+    <div class="row"><svg class="i"><use href="#i-search"/></svg><span class="grow"><b>pixelnotes</b> newsletter</span></div>
+  </div>
+  <div class="kb sheet enter">
+    <div class="grid">
+      <div class="key sm"><span>?123</span></div><div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key">0</div><div class="key"><svg class="i"><use href="#i-backspace"/></svg></div>
+      <div class="key"><svg class="i"><use href="#i-shift"/></svg></div><div class="key">q</div><div class="key">w</div><div class="key">e</div><div class="key">r</div><div class="key">t</div><div class="key">y</div><div class="key">u</div><div class="key">i</div><div class="key">o</div><div class="key">p</div><div class="key go"><svg class="i"><use href="#i-return"/></svg></div>
+      <div class="key">/</div><div class="key">a</div><div class="key">s</div><div class="key">d</div><div class="key">f</div><div class="key f" id="key-g">g</div><div class="key">h</div><div class="key">j</div><div class="key">k</div><div class="key">l</div><div class="key">:</div><div class="key"><svg class="i"><use href="#i-mic"/></svg></div>
+      <div class="key sm">.com</div><div class="key">z</div><div class="key">x</div><div class="key">c</div><div class="key">v</div><div class="key">b</div><div class="key">n</div><div class="key">m</div><div class="key">.</div><div class="key">-</div><div class="key">_</div><div class="key"><svg class="i"><use href="#i-close"/></svg></div>
+      <div class="key"><svg class="i"><use href="#i-chevron-left"/></svg></div><div class="key space"></div><div class="key"><svg class="i"><use href="#i-chevron-right"/></svg></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= tabs ================= -->
+<section class="screen lu-wallpaper" id="s-tabs" data-title="Tabs" data-mode="d-pad">
+  <div class="head">
+    <h1 class="t-title">Tabs</h1><span class="cap">7 open, 1 asleep</span><span class="grow"></span>
+    <button class="btn primary"><svg class="i"><use href="#i-plus"/></svg>New tab</button>
+    <button class="btn sheet tonebad"><svg class="i"><use href="#i-trash"/></svg>Close all</button>
+  </div>
+  <div class="tabgrid">
+    <div class="tabcard glass here"><div class="thumb"><div class="page" data-page="article" data-scroll="0" style="--s:.31875"></div></div><div class="foot"><span class="fav a" style="width:40px;height:40px;font-size:22px">P</span><div class="tt grow"><b class="ell">Panel care on a living-room OLED</b><span class="ell">pixelnotes.dev</span></div></div></div>
+    <div class="tabcard glass f"><div class="thumb"><div class="page" data-page="front" data-scroll="0" style="--s:.31875"></div><button class="btn ic x sheet" aria-label="Close tab"><svg class="i"><use href="#i-close"/></svg></button></div><div class="foot"><span class="fav b" style="width:40px;height:40px;font-size:22px">N</span><div class="tt grow"><b class="ell">Northlight</b><span class="ell">northlight.news</span></div></div></div>
+    <div class="tabcard glass"><div class="thumb"><div class="page dark" data-page="video" data-scroll="0" style="--s:.31875"></div><span class="badge sheet"><svg class="i s"><use href="#i-volume"/></svg>Playing</span></div><div class="foot"><span class="fav c" style="width:40px;height:40px;font-size:22px">T</span><div class="tt grow"><b class="ell">Moonrise over the Sound</b><span class="ell">tidepool.video</span></div></div></div>
+    <div class="tabcard glass"><div class="thumb"><div class="page" data-page="map" data-scroll="0" style="--s:.31875"></div></div><div class="foot"><span class="fav d" style="width:40px;height:40px;font-size:22px">O</span><div class="tt grow"><b class="ell">Open Atlas</b><span class="ell">openatlas.org</span></div></div></div>
+    <div class="tabcard glass"><div class="thumb"><div class="page dark" data-page="docs" data-scroll="0" style="--s:.31875"></div></div><div class="foot"><span class="fav e" style="width:40px;height:40px;font-size:22px">R</span><div class="tt grow"><b class="ell">Ownership and borrowing</b><span class="ell">rustbook.dev</span></div></div></div>
+    <div class="tabcard glass"><div class="thumb"><div class="page" data-page="shop" data-scroll="0" style="--s:.31875"></div><i class="loadbar" style="--p:.4"></i></div><div class="foot"><span class="fav ff" style="width:40px;height:40px;font-size:22px">H</span><div class="tt grow"><b class="ell">Loading…</b><span class="ell">harbor.market</span></div></div></div>
+    <div class="tabcard glass"><div class="thumb"><div class="page" data-page="shop" data-scroll="0" style="--s:.31875"></div><div class="sleep"><svg class="i"><use href="#i-moon"/></svg><span class="cap">Asleep</span></div></div><div class="foot"><span class="fav g" style="width:40px;height:40px;font-size:22px">K</span><div class="tt grow"><b class="ell">Weeknight dinners</b><span class="ell">kitchentable.cooking</span></div></div></div>
+    <div class="tabcard glass newcard"><svg class="i" style="width:56px;height:56px"><use href="#i-plus"/></svg>New tab</div>
+  </div>
+  <div class="hints sheet enter">
+    <span class="hint"><svg class="i"><use href="#i-key-ok"/></svg>Switch</span>
+    <span class="hint"><svg class="i"><use href="#i-key-ok-hold"/></svg>Options</span>
+    <span class="hint"><svg class="i"><use href="#i-key-back"/></svg>Return</span>
+  </div>
+</section>
+
+<!-- ================= menu ================= -->
+<section class="screen" id="s-menu" data-title="Page menu" data-mode="d-pad">
+  <div class="page" data-page="article" data-scroll="330" data-zoom="1.25"></div>
+  <div class="veil"></div>
+  <div class="bar sheet enter" id="bar-m">
+    <button class="btn ic"><svg class="i"><use href="#i-back"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-forward"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-reload"/></svg></button>
+    <div class="omni"><svg class="i s"><use href="#i-lock"/></svg><span class="host">pixelnotes.dev</span><span class="path ell">/guides/panel-care</span></div>
+    <button class="btn"><svg class="i pos"><use href="#i-shield-check"/></svg><span class="num">14</span></button>
+    <button class="btn ic"><span class="cnt">7</span></button>
+    <button class="btn ic sel" id="btn-menu"><svg class="i"><use href="#i-menu"/></svg></button>
+  </div>
+  <div class="pop sheet enter" data-below="#btn-menu" data-align="right" data-gap="14">
+    <div class="row"><svg class="i"><use href="#i-zoom-in"/></svg><span class="grow">Zoom</span><span class="stepper"><button class="btn ic fill"><svg class="i"><use href="#i-minus"/></svg></button><b class="num">125%</b><button class="btn ic fill"><svg class="i"><use href="#i-plus"/></svg></button></span></div>
+    <div class="row"><svg class="i"><use href="#i-search"/></svg><span class="grow">Find in page</span></div>
+    <div class="row"><svg class="i"><use href="#i-book"/></svg><span class="grow">Reader view</span></div>
+    <div class="row f"><svg class="i"><use href="#i-moon"/></svg><span class="grow">Dark pages</span><span class="sw on"><svg class="i"><use href="#i-check"/></svg></span></div>
+    <div class="row"><svg class="i"><use href="#i-monitor"/></svg><span class="grow">Desktop site</span><span class="sw"></span></div>
+    <div class="hr"></div>
+    <div class="row"><svg class="i"><use href="#i-star"/></svg><span class="grow">Add bookmark</span></div>
+    <div class="row"><svg class="i"><use href="#i-bookmark"/></svg><span class="grow">Bookmarks and history</span></div>
+    <div class="row"><svg class="i"><use href="#i-download"/></svg><span class="grow">Downloads</span></div>
+    <div class="row"><svg class="i"><use href="#i-puzzle"/></svg><span class="grow">Extensions</span></div>
+    <div class="row"><svg class="i"><use href="#i-sliders"/></svg><span class="grow">Settings</span></div>
+  </div>
+</section>
+
+<!-- ================= context menu on a link ================= -->
+<section class="screen" id="s-context-link" data-title="Link menu" data-mode="pointer">
+  <div class="page" data-page="article" data-scroll="330" data-hover="#pg-method"></div>
+  <div class="pop sheet enter" id="ctx" data-at="#cur-ctx" data-dx="26" data-dy="18" style="--w:600px">
+    <div class="row"><svg class="i"><use href="#i-external"/></svg><span class="grow">Open</span></div>
+    <div class="row"><svg class="i"><use href="#i-tabs"/></svg><span class="grow">Open in new tab</span></div>
+    <div class="row h" id="ctx-hover"><svg class="i"><use href="#i-plus"/></svg><span class="grow">Open in background</span></div>
+    <div class="row"><svg class="i"><use href="#i-copy"/></svg><span class="grow">Copy link</span></div>
+    <div class="row"><svg class="i"><use href="#i-star"/></svg><span class="grow">Add bookmark</span></div>
+  </div>
+  <svg class="cur" id="cur-ctx" data-kind="arrow" data-on="#pg-method" data-fx=".5" data-fy=".5" style="visibility:hidden"><use href="#c-arrow"/></svg>
+  <svg class="cur" id="cur-ctx2" data-kind="arrow" data-on="#ctx-hover" data-fx=".8" data-fy=".6"><use href="#c-arrow"/></svg>
+</section>
+
+<!-- ================= selecting text ================= -->
+<section class="screen" id="s-select-text" data-title="Selecting text" data-mode="pointer">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="abs" data-sel="#sel-src" data-tools="#seltools"></div>
+  <div class="pop sheet enter" id="seltools" style="width:auto;display:flex;gap:4px;padding:8px;border-radius:40px">
+    <button class="btn"><svg class="i"><use href="#i-copy"/></svg>Copy</button>
+    <button class="btn"><svg class="i"><use href="#i-search"/></svg>Search</button>
+    <button class="btn"><svg class="i"><use href="#i-text-select"/></svg>Select all</button>
+  </div>
+  <svg class="cur" id="cur-sel" data-kind="ibeam" data-sel-end="#sel-src"><use href="#c-ibeam"/></svg>
+</section>
+
+<!-- ================= image viewer ================= -->
+<section class="screen on-media" id="s-image-viewer" data-title="Image viewer" data-mode="d-pad">
+  <img class="photo" src="assets/photo-mountain.svg" alt="">
+  <div class="dim media"></div>
+  <div class="toast sheet enter" style="left:var(--lu-edge-x);top:var(--lu-edge-y)"><svg class="i s"><use href="#i-image"/></svg><span>mountain-lake.jpg</span><span class="ink2 num">4096 × 2304, 3.2 MB</span></div>
+  <div class="hints sheet enter" style="top:var(--lu-edge-y);bottom:auto">
+    <span class="hint"><svg class="i"><use href="#i-key-left"/></svg><svg class="i"><use href="#i-key-right"/></svg>Browse</span>
+    <span class="hint"><svg class="i"><use href="#i-key-ok"/></svg>Zoom</span>
+    <span class="hint"><svg class="i"><use href="#i-key-back"/></svg>Close</span>
+  </div>
+  <div class="strip sheet enter">
+    <button class="btn ic" aria-label="Previous"><svg class="i"><use href="#i-chevron-left"/></svg></button>
+    <button class="btn ic f" aria-label="Next"><svg class="i"><use href="#i-chevron-right"/></svg></button>
+    <span class="pos num">3 / 12</span>
+    <span class="sp"></span>
+    <button class="btn ic" aria-label="Zoom out"><svg class="i"><use href="#i-minus"/></svg></button>
+    <button class="btn">Fit</button>
+    <button class="btn ic" aria-label="Zoom in"><svg class="i"><use href="#i-plus"/></svg></button>
+    <span class="sp"></span>
+    <button class="btn ic" aria-label="Save"><svg class="i"><use href="#i-download"/></svg></button>
+    <button class="btn ic" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+  </div>
+</section>
+
+<!-- ================= dialog ================= -->
+<section class="screen" id="s-dialog" data-title="Leave this page" data-mode="d-pad">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="dim hide"></div>
+  <div class="dlg sheet enter">
+    <div class="origin cap"><svg class="i s"><use href="#i-lock"/></svg><span>pixelnotes.dev says</span></div>
+    <h1 class="t-title">Leave this page?</h1>
+    <p class="lead">The comment you started will be lost.</p>
+    <div class="acts">
+      <span class="hints-in"><span class="hint"><svg class="i"><use href="#i-key-ok"/></svg>Choose</span><span class="hint"><svg class="i"><use href="#i-key-back"/></svg>Stay</span></span>
+      <button class="btn danger"><svg class="i"><use href="#i-forward"/></svg>Leave</button>
+      <button class="btn primary f">Stay</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= video ================= -->
+<section class="screen on-media" id="s-video" data-title="Video controls" data-mode="d-pad">
+  <img class="still" src="assets/still-video.svg" alt="">
+  <div class="dim media"></div>
+  <div class="vtitle"><div class="t-title">Moonrise over the Sound</div><div class="cap" style="color:var(--lu-media-ink)">Tidepool · 4K HDR · 41 min</div></div>
+  <div class="hints sheet enter" style="top:var(--lu-edge-y);bottom:auto">
+    <span class="hint"><svg class="i"><use href="#i-key-left"/></svg><svg class="i"><use href="#i-key-right"/></svg>Seek</span>
+    <span class="hint"><svg class="i"><use href="#i-key-ok"/></svg>Play or pause</span>
+    <span class="hint"><svg class="i"><use href="#i-key-back"/></svg>Exit</span>
+  </div>
+  <div class="player sheet enter">
+    <div class="scrub"><span class="num">15:41</span><div class="track"><i class="buf"></i><i class="played"></i><i class="knob"></i></div><span class="num">-25:19</span></div>
+    <div class="ctl">
+      <button class="btn ic f" aria-label="Pause"><svg class="i"><use href="#i-pause"/></svg></button>
+      <button class="btn" aria-label="Back 10 seconds"><svg class="i"><use href="#i-replay"/></svg>10 s</button>
+      <button class="btn" aria-label="Forward 10 seconds">10 s<svg class="i"><use href="#i-forward-10"/></svg></button>
+      <button class="btn ic" aria-label="Volume"><svg class="i"><use href="#i-volume"/></svg></button>
+      <span class="grow"></span>
+      <button class="btn ic" aria-label="Captions"><svg class="i"><use href="#i-captions"/></svg></button>
+      <button class="btn"><svg class="i"><use href="#i-gauge"/></svg>1×</button>
+      <button class="btn"><svg class="i"><use href="#i-sliders"/></svg>2160p</button>
+      <button class="btn ic" aria-label="Exit full screen"><svg class="i"><use href="#i-fullscreen-exit"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= extensions ================= -->
+<section class="screen" id="s-extensions" data-title="Extensions and the shield" data-mode="pointer">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="veil"></div>
+  <div class="bar sheet enter" id="bar-e">
+    <button class="btn ic"><svg class="i"><use href="#i-back"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-forward"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-reload"/></svg></button>
+    <div class="omni"><svg class="i s"><use href="#i-lock"/></svg><span class="host">pixelnotes.dev</span><span class="path ell">/guides/panel-care</span></div>
+    <button class="btn ic" aria-label="Passwords"><svg class="i"><use href="#i-key"/></svg></button>
+    <button class="btn ic" aria-label="Dark pages"><svg class="i"><use href="#i-moon"/></svg></button>
+    <button class="btn sel" id="btn-shield"><svg class="i pos"><use href="#i-shield-check"/></svg><span class="num">14</span></button>
+    <button class="btn ic"><span class="cnt">7</span></button>
+    <button class="btn ic"><svg class="i"><use href="#i-menu"/></svg></button>
+  </div>
+  <div class="pop sheet enter" data-below="#btn-shield" data-align="right" data-gap="14" style="--w:600px">
+    <div class="row"><svg class="i pos"><use href="#i-shield-check"/></svg><span class="grow">Shield on this site</span><span class="sw on"><svg class="i"><use href="#i-check"/></svg></span></div>
+    <div class="stats"><span class="t-display num">14</span><div class="col"><span class="cap">blocked here</span></div><span class="grow"></span><div class="col"><b class="num">9</b><span class="cap">Trackers</span></div><div class="col"><b class="num">5</b><span class="cap">Ads</span></div></div>
+    <div class="hr"></div>
+    <div class="row h" id="ext-hover"><svg class="i"><use href="#i-puzzle"/></svg><span class="grow">Extensions</span><svg class="i s ink2"><use href="#i-chevron-right"/></svg></div>
+  </div>
+  <svg class="cur" data-kind="arrow" data-on="#ext-hover" data-fx=".5" data-fy=".55"><use href="#c-arrow"/></svg>
+</section>
+
+<!-- ================= extension install ================= -->
+<section class="screen" id="s-install" data-title="Adding an extension" data-mode="d-pad">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="dim hide"></div>
+  <div class="dlg sheet enter">
+    <div class="origin cap"><svg class="i s"><use href="#i-puzzle"/></svg><span>Extension from the Chrome Web Store</span></div>
+    <h1 class="t-title">Add “Night Pages”?</h1>
+    <p class="lead">It will be able to:</p>
+    <div class="perm">
+      <div class="row"><svg class="i warn"><use href="#i-alert"/></svg><span class="grow"><b>Read and change data on every website</b></span></div>
+      <div class="row"><svg class="i ink2"><use href="#i-info"/></svg><span class="grow">Store its settings on the engine</span></div>
+    </div>
+    <div class="acts">
+      <span class="hints-in"><span class="hint"><svg class="i"><use href="#i-key-ok"/></svg>Choose</span><span class="hint"><svg class="i"><use href="#i-key-back"/></svg>Cancel</span></span>
+      <button class="btn primary">Add extension</button>
+      <button class="btn fill f">Cancel</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= permission ================= -->
+<section class="screen" id="s-permission" data-title="Site permission" data-mode="d-pad">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="veil"></div>
+  <div class="bar sheet enter" id="bar-p">
+    <button class="btn ic"><svg class="i"><use href="#i-back"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-forward"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-reload"/></svg></button>
+    <div class="omni" id="omni-p"><svg class="i s"><use href="#i-lock"/></svg><span class="host">pixelnotes.dev</span><span class="path ell">/guides/panel-care</span></div>
+    <button class="btn"><svg class="i pos"><use href="#i-shield-check"/></svg><span class="num">14</span></button>
+    <button class="btn ic"><span class="cnt">7</span></button>
+    <button class="btn ic"><svg class="i"><use href="#i-menu"/></svg></button>
+  </div>
+  <div class="pop sheet enter" data-below="#omni-p" data-align="left" data-gap="14" style="--w:760px">
+    <div class="row" style="height:auto;padding:20px 24px"><svg class="i ink2"><use href="#i-info"/></svg><span class="grow">pixelnotes.dev wants to show notifications</span></div>
+    <div style="display:flex;justify-content:flex-end;gap:12px;padding:4px 12px 8px">
+      <button class="btn fill">Allow</button>
+      <button class="btn fill f">Block</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= settings ================= -->
+<section class="screen lu-wallpaper" id="s-settings" data-title="Settings" data-mode="d-pad">
+  <div class="head"><h1 class="t-title">Browser settings</h1></div>
+  <div class="nav sheet">
+    <div class="row sel f"><svg class="i"><use href="#i-server"/></svg><span class="grow">Engine</span></div>
+    <div class="row"><svg class="i"><use href="#i-globe"/></svg><span class="grow">Browsing</span></div>
+    <div class="row"><svg class="i"><use href="#i-shield"/></svg><span class="grow">Privacy and shield</span></div>
+    <div class="row"><svg class="i"><use href="#i-moon"/></svg><span class="grow">Screen care</span></div>
+    <div class="row"><svg class="i"><use href="#i-info"/></svg><span class="grow">About</span></div>
+  </div>
+  <div class="pane sheet">
+    <header><h2 class="t-title">Engine</h2><p>The computer that loads pages for this TV.</p></header>
+    <div class="row"><svg class="i pos"><use href="#i-server"/></svg><span class="grow">BeastNAS</span><span class="meta num">192.168.1.50 · 18 ms</span><span class="pos" style="display:flex;align-items:center;gap:10px"><i class="dot"></i><span class="cap pos">Connected</span></span></div>
+    <div class="row"><svg class="i ink2"><use href="#i-info"/></svg><span class="grow">Version 0.4.2</span><span class="cap">Matches this app</span></div>
+    <div class="sub cap">Other engines on this network</div>
+    <div class="row"><svg class="i warn"><use href="#i-server-off"/></svg><span class="grow">Studio PC</span><span class="meta">Last seen 2 h ago</span><span class="warn" style="display:flex;align-items:center;gap:10px"><i class="dot"></i><span class="cap warn">Not answering</span></span></div>
+    <div class="row"><svg class="i"><use href="#i-server"/></svg><span class="grow">Laptop</span><span class="meta">Version 0.4.0</span><button class="btn primary"><svg class="i"><use href="#i-download"/></svg>Update</button></div>
+    <div class="row"><svg class="i"><use href="#i-plus"/></svg><span class="grow">Pair another engine</span><svg class="i s ink2"><use href="#i-chevron-right"/></svg></div>
+  </div>
+  <div class="hints sheet enter">
+    <span class="hint"><svg class="i"><use href="#i-key-ok"/></svg>Choose</span>
+    <span class="hint"><svg class="i"><use href="#i-key-back"/></svg>Return</span>
+  </div>
+</section>
+
+<!-- ================= pairing ================= -->
+<section class="screen lu-wallpaper" id="s-pair" data-title="Pairing" data-mode="d-pad">
+  <div class="dlg glass enter" style="--w:1180px;gap:26px">
+    <div class="origin cap"><svg class="i s"><use href="#i-server"/></svg><span>BeastNAS · 192.168.1.50</span></div>
+    <h1 class="t-title">Enter the code from the engine</h1>
+    <p class="lead">Six digits, shown where the engine runs. The code works once and expires after 5 minutes.</p>
+    <div style="display:flex;gap:56px;align-items:center;margin-top:8px">
+      <div class="digits"><span class="digit num">4</span><span class="digit num">1</span><span class="digit num">7</span><span class="digit num now"><i class="caret"></i></span><span class="digit"></span><span class="digit"></span></div>
+      <div class="pad">
+        <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+        <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+        <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+        <div class="key"><svg class="i"><use href="#i-backspace"/></svg></div><div class="key f">0</div><div class="key go"><svg class="i"><use href="#i-check"/></svg></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= engine unreachable ================= -->
+<section class="screen" id="s-offline" data-title="Engine not answering" data-mode="d-pad">
+  <div class="page" data-page="article" data-scroll="330"></div>
+  <div class="dim page-dim"></div>
+  <div class="dlg sheet enter" style="--w:960px;align-items:flex-start">
+    <div class="disc warn"><svg class="i" style="width:48px;height:48px"><use href="#i-server-off"/></svg></div>
+    <h1 class="t-title">The browser engine isn’t answering</h1>
+    <p class="lead">BeastNAS, 192.168.1.50. Last heard from 14 s ago. The page above is the last picture it sent.</p>
+    <div style="width:100%;display:flex;flex-direction:column;gap:10px"><div class="countdown" style="--p:.63"></div><span class="cap">Trying again in 5 s</span></div>
+    <div class="acts" style="width:100%">
+      <span class="hints-in"><span class="hint"><svg class="i"><use href="#i-key-back"/></svg>Leave browser</span></span>
+      <button class="btn fill">Engine settings</button>
+      <button class="btn primary f"><svg class="i"><use href="#i-reload"/></svg>Try again</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= page could not load ================= -->
+<section class="screen" id="s-error" data-title="Page could not load" data-mode="d-pad">
+  <div class="bar sheet enter">
+    <button class="btn ic"><svg class="i"><use href="#i-back"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-forward"/></svg></button>
+    <button class="btn ic"><svg class="i"><use href="#i-reload"/></svg></button>
+    <div class="omni"><svg class="i s"><use href="#i-lock-open"/></svg><span class="host">harbor.market</span><span class="path ell">/offers</span></div>
+    <button class="btn"><svg class="i pos"><use href="#i-shield-check"/></svg><span class="num">0</span></button>
+    <button class="btn ic"><span class="cnt">7</span></button>
+    <button class="btn ic"><svg class="i"><use href="#i-menu"/></svg></button>
+  </div>
+  <div class="dlg sheet" style="background:transparent;border:0;box-shadow:none;backdrop-filter:none;align-items:center;text-align:center;--w:960px;top:56%">
+    <div class="disc bad"><svg class="i" style="width:48px;height:48px"><use href="#i-wifi-off"/></svg></div>
+    <h1 class="t-title">harbor.market can’t be reached</h1>
+    <p class="lead">The engine got no answer from the site after 30 s. The site may be down, or the address may be wrong.</p>
+    <span class="cap">Connection timed out</span>
+    <div class="acts" style="justify-content:center">
+      <button class="btn fill">Edit address</button>
+      <button class="btn primary f"><svg class="i"><use href="#i-reload"/></svg>Try again</button>
+    </div>
+  </div>
+</section>
+
+<div class="safe"></div>
+</main>
+
+<!-- ================= page fixtures, cloned wherever a screen shows a page ================= -->
+<template id="t-article">
+  <header class="pg-head"><b class="pg-logo">Pixel Notes</b><nav><a>Reviews</a><a>Guides</a><a>Deals</a><a>About</a></nav><span class="grow"></span><span class="pg-search"></span><a class="pg-btn">Subscribe</a></header>
+  <div class="pg-scroll pg-article"><div class="body"><article>
+    <p class="kick">Guides</p>
+    <h1>Panel care on a living-room OLED</h1>
+    <p class="dek">What the dimming, the shifting and the occasional refresh actually do, and why they are worth leaving on.</p>
+    <p class="by">Mira Okafor · 9 min read · Updated 12 Nov</p>
+    <div class="hero art-lake"></div>
+    <p class="t">An OLED panel makes its own light, one sub-pixel at a time. That is why black is truly black, and also why the pixels that work hardest age first. <a id="pg-logos">Static logos</a> and channel bugs are the usual culprits: a bright, fixed shape that sits in one place for hours wears a little faster than the picture around it.</p>
+    <p class="t">Every modern set therefore carries a few quiet protections. <span id="sel-src">Screen shift nudges the whole picture by a pixel or two every few minutes. Logo dimming finds a steady bright patch and turns it down.</span> A pixel refresher runs when the set is off and measures how each pixel has drifted.</p>
+    <h2>What you can do about it</h2>
+    <p class="t">Avoid leaving a static page on screen for hours, let the set sleep when you walk away, and keep the brightness at a level that is comfortable in the room. The numbers behind each claim are in <a id="pg-method">the full test method</a>, with the raw measurements for 14 panels.</p>
+    <p class="t">None of this needs a setting changed. The protections work quietly in the background and are designed to be left on for the life of the panel.</p>
+  </article>
+  <aside><h3>Related</h3><a class="rel">Is burn-in still a worry in 2026?</a><a class="rel">Setting up Just Scan on webOS</a><a class="rel">HDR in a bright room: what to tweak</a><a class="rel">The pixel refresher, explained</a><div class="news"><b>The weekly note</b>One email on Fridays. No tracking pixels.</div></aside></div></div>
+</template>
+<template id="t-front">
+  <header class="pg-head"><b class="pg-logo">Northlight</b><nav><a>Top</a><a>World</a><a>Tech</a><a>Culture</a><a>Video</a></nav><span class="grow"></span><span class="pg-search"></span></header>
+  <div class="pg-scroll pg-front"><div class="body">
+    <a class="lead" id="pf-lead"><div class="art art-1"></div><h2>A quiet year for the electric grid</h2><small>Energy · 6 min read</small></a>
+    <div class="brief"><a>Ferries return to the northern route<small>Travel · 3 min</small></a><a>What a harbour pilot sees from the bridge<small>Culture · 5 min</small></a><a>Why the clocks in the old town disagree<small>Places · 4 min</small></a></div>
+    <a class="card" id="pf-c1"><div class="art art-2"></div><h3>Tide tables for the whole coast</h3><small>Maps · 4 min</small></a>
+    <a class="card" id="pf-c2"><div class="art art-3"></div><h3>Eight bakeries worth the queue</h3><small>Food · 7 min</small></a>
+    <a class="card" id="pf-c3"><div class="art art-4"></div><h3>The case for slower software</h3><small>Tech · 8 min</small></a>
+    <a class="card" id="pf-c4"><div class="art art-5"></div><h3>A field guide to winter light</h3><small>Photo · 5 min</small></a>
+  </div></div>
+</template>
+<template id="t-shop">
+  <header class="pg-head"><b class="pg-logo">Harbor</b><nav><a>Offers</a><a>Kitchen</a><a>Garden</a></nav><span class="grow"></span><span class="pg-search"></span></header>
+  <div class="pg-scroll pg-shop"><div class="body">
+    <div class="item"><div class="art art-2"></div><b>Linen apron</b><span>$38</span></div><div class="item"><div class="art art-3"></div><b>Enamel pot</b><span>$64</span></div>
+    <div class="item"><div class="art art-5"></div><b>Cutting board</b><span>$29</span></div><div class="item"><div class="art art-4"></div><b>Glass jars, set of 6</b><span>$24</span></div>
+  </div></div>
+</template>
+<template id="t-docs">
+  <header class="pg-head"><b class="pg-logo">Rust Book</b><nav><a>Guide</a><a>Reference</a></nav><span class="grow"></span><span class="pg-search"></span></header>
+  <div class="pg-scroll pg-docs"><div class="body"><div class="side"><a>Ownership</a><a>References</a><a>Slices</a><a>Structs</a></div><div><h1>Ownership and borrowing</h1><p class="t">Each value has one owner, and the value is dropped when the owner goes out of scope.</p><div class="code">let s = String::from("hello");<br>let t = s; // s is moved</div></div></div></div>
+</template>
+<template id="t-video">
+  <header class="pg-head"><b class="pg-logo">Tidepool</b><nav><a>Home</a><a>Films</a><a>Live</a></nav><span class="grow"></span><span class="pg-search"></span></header>
+  <div class="pg-scroll pg-video"><div class="body"><div><div class="player art-night"></div><h1>Moonrise over the Sound</h1></div><div><div class="up art-4"></div><div class="up art-2"></div><div class="up art-6"></div></div></div></div>
+</template>
+<template id="t-map">
+  <header class="pg-head"><b class="pg-logo">Open Atlas</b><nav><a>Maps</a><a>Routes</a></nav><span class="grow"></span><span class="pg-search"></span></header>
+  <div class="pg-map"><div class="body art-map"></div></div>
+</template>
+
+<script>
+(function () {
+  var stage = document.getElementById('stage');
+  var screens = Array.prototype.slice.call(document.querySelectorAll('.screen'));
+
+  /* fixtures: clone each page template into its container, then apply the scroll offset, zoom and hover state */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-page]'), function (el) {
+    el.classList.add('page');
+    el.appendChild(document.getElementById('t-' + el.dataset.page).content.cloneNode(true));
+    if (el.dataset.scroll) el.style.setProperty('--scroll', el.dataset.scroll + 'px');
+    if (el.dataset.zoom) el.style.setProperty('--zoom', el.dataset.zoom);
+    if (el.dataset.hover) { var h = el.querySelector(el.dataset.hover); if (h) h.classList.add('hv'); }
+  });
+
+  function fit() {
+    var k = Math.min(1, innerWidth / 1920, innerHeight / 1080);
+    stage.style.setProperty('--fit', k);
+  }
+  function rect(el) {
+    var s = stage.getBoundingClientRect(), k = s.width / 1920, r = el.getBoundingClientRect();
+    return { x: (r.left - s.left) / k, y: (r.top - s.top) / k, w: r.width / k, h: r.height / k };
+  }
+  function rect1(el) {  /* the first line box of a wrapped link, where a pointer would actually rest */
+    var s = stage.getBoundingClientRect(), k = s.width / 1920, r = el.getClientRects()[0] || el.getBoundingClientRect();
+    return { x: (r.left - s.left) / k, y: (r.top - s.top) / k, w: r.width / k, h: r.height / k };
+  }
+  var HOT = { arrow: [5, 3], hand: [16.5, 3], ibeam: [22, 22] };
+
+  function layout() {
+    var scr = document.querySelector('.screen.on'); if (!scr) return;
+    var q = function (sel) { return scr.querySelector(sel); };
+    Array.prototype.forEach.call(scr.querySelectorAll('[data-around]'), function (el) {
+      var t = q(el.dataset.around); if (!t) return; var r = rect(t), p = +(el.dataset.pad || 6);
+      el.style.left = (r.x - p) + 'px'; el.style.top = (r.y - p) + 'px'; el.style.width = (r.w + 2 * p) + 'px'; el.style.height = (r.h + 2 * p) + 'px';
+      el.style.borderRadius = (el.dataset.radius || 16) + 'px';
+    });
+    Array.prototype.forEach.call(scr.querySelectorAll('[data-below]'), function (el) {
+      var t = q(el.dataset.below); if (!t) return; var r = rect(t), g = +(el.dataset.gap || 14);
+      el.style.top = (r.y + r.h + g) + 'px';
+      el.style.left = (el.dataset.align === 'right' ? r.x + r.w - el.offsetWidth : r.x) + 'px';
+    });
+    var placeCursors = function () {
+      Array.prototype.forEach.call(scr.querySelectorAll('.cur[data-on]'), function (el) {
+        var t = q(el.dataset.on); if (!t) return; var r = rect1(t), hs = HOT[el.dataset.kind];
+        el.style.left = (r.x + r.w * (+el.dataset.fx) - hs[0]) + 'px'; el.style.top = (r.y + r.h * (+el.dataset.fy) - hs[1]) + 'px';
+      });
+    };
+    placeCursors();
+    Array.prototype.forEach.call(scr.querySelectorAll('[data-at]'), function (el) {
+      var t = q(el.dataset.at); if (!t) return; var r = rect(t), hs = HOT[t.dataset.kind || 'arrow'];
+      var px = r.x + hs[0], py = r.y + hs[1], dx = +el.dataset.dx || 0, dy = +el.dataset.dy || 0, w = el.offsetWidth, h = el.offsetHeight;
+      var left = px + dx, top = py + dy;
+      if (left + w > 1824) left = px - dx - w;  /* a menu flips to the other side of the pointer instead of covering it */
+      if (top + h > 1026) top = py - dy - h;
+      el.style.left = Math.max(96, left) + 'px'; el.style.top = Math.max(54, top) + 'px';
+    });
+    placeCursors();  /* a cursor resting on a menu row needs the menu's final position */
+    /* a selection: client-drawn highlight rectangles and two handles from the engine's line boxes, and a toolbar above them */
+    Array.prototype.forEach.call(scr.querySelectorAll('[data-sel]'), function (host) {
+      var src = q(host.dataset.sel); if (!src) return;
+      Array.prototype.forEach.call(scr.querySelectorAll('.selrect,.handle'), function (n) { n.remove(); });
+      var s = stage.getBoundingClientRect(), k = s.width / 1920, rects = Array.prototype.slice.call(src.getClientRects());
+      var first = null, last = null, top = 1e9, left = 1e9, right = 0;
+      rects.forEach(function (r) {
+        var d = document.createElement('div'); d.className = 'selrect';
+        var x = (r.left - s.left) / k, y = (r.top - s.top) / k;
+        d.style.cssText = 'left:' + x + 'px;top:' + y + 'px;width:' + r.width / k + 'px;height:' + r.height / k + 'px';
+        scr.appendChild(d); if (!first) first = { x: x, y: y, h: r.height / k }; last = { x: x + r.width / k, y: y, h: r.height / k };
+        top = Math.min(top, y); left = Math.min(left, x); right = Math.max(right, x + r.width / k);
+      });
+      [[first.x, first.y + first.h], [last.x, last.y + last.h]].forEach(function (p, i) {
+        var h = document.createElement('div'); h.className = 'handle'; h.style.left = (p[0] - 14) + 'px'; h.style.top = (p[1] - 4) + 'px'; scr.appendChild(h);
+      });
+      var tools = q(host.dataset.tools);
+      if (tools) { tools.style.left = Math.max(96, Math.min(1824 - tools.offsetWidth, (left + right) / 2 - tools.offsetWidth / 2)) + 'px'; tools.style.top = (top - 24 - tools.offsetHeight) + 'px'; }
+      host.dataset.lastX = last.x; host.dataset.lastY = last.y; host.dataset.lastH = last.h;
+    });
+    Array.prototype.forEach.call(scr.querySelectorAll('.cur[data-sel-end]'), function (el) {
+      var host = scr.querySelector('[data-sel]'); if (!host || !host.dataset.lastX) return;
+      el.style.left = (+host.dataset.lastX + 10 - 22) + 'px'; el.style.top = (+host.dataset.lastY + host.dataset.lastH / 2 - 22) + 'px';
+    });
+  }
+
+  function route() {
+    var h = (location.hash || '#start').slice(1) || 'start', next = document.getElementById('s-' + h) || document.getElementById('s-start');
+    screens.forEach(function (s) { s.classList.toggle('on', s === next); });
+    document.body.dataset.screen = next.id.slice(2); document.title = 'LumaBrowser · ' + next.dataset.title;
+    fit(); layout();
+    window.__ready = true;
+  }
+  addEventListener('hashchange', route);
+  addEventListener('resize', function () { fit(); layout(); });
+  addEventListener('keydown', function (e) {  /* review aid only: PageUp and PageDown walk the screens */
+    var i = screens.findIndex(function (s) { return s.classList.contains('on'); });
+    if (e.key === 'PageDown') location.hash = screens[(i + 1) % screens.length].id.slice(2);
+    if (e.key === 'PageUp') location.hash = screens[(i + screens.length - 1) % screens.length].id.slice(2);
+  });
+  route();
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(function () { layout(); window.__fonts = true; });
+})();
+</script>
+</body>
+</html>

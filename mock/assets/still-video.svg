@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#050b1c"/>
+      <stop offset=".5" stop-color="#14305a"/>
+      <stop offset=".8" stop-color="#2a6a86"/>
+      <stop offset="1" stop-color="#7fb7b5"/>
+    </linearGradient>
+    <radialGradient id="moon" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".18" stop-color="#eaf3ff"/>
+      <stop offset=".34" stop-color="#9ec6ee" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#4a7fb8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6aa6b4"/>
+      <stop offset=".3" stop-color="#235b7d"/>
+      <stop offset="1" stop-color="#06182d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <g fill="#fff" opacity=".85">
+    <circle cx="180" cy="120" r="2"/><circle cx="420" cy="260" r="1.6"/><circle cx="700" cy="90" r="2"/>
+    <circle cx="1540" cy="140" r="2"/><circle cx="1750" cy="300" r="1.6"/><circle cx="1280" cy="60" r="1.8"/>
+    <circle cx="960" cy="210" r="1.6"/><circle cx="260" cy="420" r="1.5"/><circle cx="1620" cy="440" r="1.5"/>
+  </g>
+  <circle cx="1240" cy="380" r="360" fill="url(#moon)"/>
+  <circle cx="1240" cy="380" r="86" fill="#f6fbff"/>
+  <path d="M0 600 C300 560 520 640 820 600 C1120 560 1500 640 1920 590 L1920 1080 L0 1080Z" fill="url(#sea)"/>
+  <g fill="#e9f4ff" opacity=".55">
+    <rect x="1190" y="640" width="100" height="8" rx="4"/>
+    <rect x="1150" y="676" width="180" height="8" rx="4"/>
+    <rect x="1110" y="720" width="260" height="8" rx="4"/>
+    <rect x="1060" y="772" width="360" height="8" rx="4"/>
+  </g>
+  <path d="M0 740 C200 700 340 760 560 724 C780 688 900 760 1120 790 C1300 820 1420 900 1500 1080 L0 1080Z" fill="#04111f" opacity=".92"/>
+  <path d="M1380 1080 C1500 940 1640 900 1920 880 L1920 1080Z" fill="#030b16"/>
+</svg>

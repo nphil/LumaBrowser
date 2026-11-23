@@ -29,7 +29,11 @@ cutover in `PLAN.md`.
 - TV: 2.03 GB RAM with 0.7 to 0.8 GB available, Mali-G52 MC3, 4 cores, aarch64 kernel with a 32-bit LG userspace.
 - The graphics plane is 1920x1080: the kernel accepts a 3840x2160 mode, but the picture still leaves at 1080p
   (`/data/home/lumaglass/docs/HANDOFF.md:1892`, `/data/home/lumaglass/docs/PLAN.md:171-173`). The video plane is
-  3840x2160.
+  3840x2160; a 4K120 HEVC clip played 300 s through LumaTV's feeder with 0 frames dropped
+  (`research/lumatv-platform.md`, section 4).
+- LumaTV's compositor does not pace a client: frame callbacks go out with each commit. The panel runs at 60 Hz unless
+  its refresh policy picks 120 Hz, which it does today only for Marquee and LumaTV's own UI (`research/lumatv-platform.md`,
+  section 3). The compositor sends pointer motion to a client but no wheel (`wl_pointer.axis`) (section 6).
 
 A round trip costs 1/35 of a 120 Hz frame, so latency is not the constraint. The constraints are jitter when the server
 is busy, the 100 Mbit/s link (12 MB/s) for images, and the TV's memory.
@@ -68,8 +72,17 @@ LumaTV compositor ── pointer, wheel, keys, text ──┐
   NOW app is: the app's `main` is a small 32-bit feeder, the only process LG lets drive the hardware decoder (NDL
   DirectMedia), and it starts the 64-bit Rust program through `gfx64/launch.sh`, which supplies the 64-bit loader,
   glibc, Mali driver and heap shim (`/data/home/lumaglass/docs/research/gfn-app-result.md`, items 2, 5 and 6). The
-  feeder starts from `/data/home/lumaglass/gfn/feeder` (its serve mode and local socket), with the codec table of
-  `source/package/launcher/cnrun.c` (H.264, HEVC, VP9, AV1).
+  feeder starts from `/data/home/lumaglass/gfn/feeder` (its serve mode, local socket and drop counters), with VP9 added
+  from the codec table of `source/package/launcher/cnrun.c`. The Wayland window and EGL setup start from a copy of
+  LumaTV's `rustui/app/src/window.rs` and its protocol files, extended with pointer, wheel and `text_model`;
+  LumaTV's toolkit crate cannot be a dependency (it pulls path dependencies from three other trees,
+  `research/lumatv-platform.md`, section 1).
+- `skp/` (`lb-skp`): Skia pictures in and out with fonts and images replaced by resource ids, the picture version
+  check, and the text settings that match Chromium. Engine and client both use it. It wraps a small C++ shim, because
+  `skia-safe` 0.157 does not expose Skia's serialization hooks; without them fonts come back empty and images are
+  dropped (`research/skp-roundtrip.md`, "Replay results").
+- LumaTV changes: the browser's app id joins the compositor's 120 Hz policy, and the compositor forwards the Magic
+  Remote wheel to client apps. Both land in the lumaglass repo under its own rules.
 - The phone remote is LumaTV's existing one (`research/remote-and-video.md`, part 1). Its pointer, touchpad and d-pad
   reach the client through LumaTV like the physical remote. Its keyboard needs the client to report the focused field
   to LumaTV. Tabs, address entry and "send to TV" are additions to its protocol and to `LumaRemoteKit`, shown while
@@ -128,9 +141,12 @@ sends images with more detail when the new scale needs it.
 - Versions must match exactly. The engine image carries the client package of its own version and serves it over HTTP
   on `18741` (`/client/version`, `/client/package.ipk`, `/health`); the TV's updater installs from there, so the two
   halves cannot drift apart.
-- Configuration until discovery exists (package U9): the client reads `engine.json` (`{"engine": "host:18740",
-  "token": "..."}`) from its data directory; the engine reads `LB_LISTEN`, `LB_HTTP_LISTEN`, `LB_DATA` and writes its
-  token to `LB_DATA/token` on first start.
+- Pairing: the TV finds the engine by mDNS (`_lumabrowser._tcp`). The engine accepts a new TV only while its pairing
+  window is open: for 10 minutes after a start while no TV is paired, or when opened from its HTTP page. The TV and
+  the engine's page both show the same six-digit code; the engine then issues that TV a token, kept in `LB_DATA`.
+  Until discovery exists (package U9) the client reads `engine.json` (`{"engine": "host:18740", "token": "..."}`) from
+  its data directory, and the engine writes a first token to `LB_DATA/token`. The engine reads `LB_LISTEN`,
+  `LB_HTTP_LISTEN` and `LB_DATA`.
 - Media: the client owns the network side. It passes access units and PCM to the feeder over the feeder's local
   socket in the feeder's own message format; the feeder never opens a network connection.
 - The phone never talks to the engine. Browser-specific phone actions arrive at the client as LumaTV remote messages
@@ -164,7 +180,7 @@ Message families (the field-level definition is `proto/src/`):
 |---|---|
 | Resource id | `u64`: the first 8 bytes of the BLAKE3 hash of the resource's bytes |
 | Scroller, item, pass, focusable ids | `u64` assigned by the engine, stable across updates |
-| Inside a picture | a typeface or image is written as its resource id, 8 little-endian bytes (`proto::skp`) |
+| Inside a picture | a typeface or image is written as its resource id, 8 little-endian bytes, by `lb-skp`'s serialization hooks |
 | Lengths and positions | CSS pixels as `f32`; rectangles as `x, y, w, h` |
 | Transform | 4x4, column-major, 16 `f32` |
 | Keys | the DOM `code` and `key` strings plus modifier bits; text is separate |
@@ -181,28 +197,49 @@ Message families (the field-level definition is `proto/src/`):
   list from cached tiles with Skia on the GPU, then the browser UI and the cursor. It never waits for raster or
   network. A missing tile is drawn from a lower-resolution tile if one exists, otherwise as the page's background colour.
 - **Raster workers**: rasterize 512x512 tiles of pictures at the current scale, visible tiles first, then one screen
-  ahead in the scroll direction. Invalidation rectangles drop only the tiles they touch.
+  ahead in the scroll direction. Invalidation rectangles drop only the tiles they touch. Text uses Chromium's Linux
+  settings (contrast 0.2, gamma 1.2); Skia's defaults miss the fidelity gate on text pages. Measured on the server, one
+  512x512 text tile takes 0.3 to 1.4 ms to raster once its fonts are loaded and 2 to 8 ms with photos; the TV's
+  numbers come from gate P2.
 - **Network threads**: one per connection; decode `proto` frames, store resources, hand scene deltas to the render
   thread through a lock-free queue.
 - **Budgets** (REQ8): tiles 64 MB, decoded images 96 MB, pictures and fonts 48 MB, with least-recently-used eviction;
   the remaining 42 MB is the program, Skia's caches and the UI. Evicted resources are requested again from the engine,
-  which keeps everything.
+  which keeps everything. Fonts also go to a 64 MB disk cache in the app's data folder, so a large font (the colour
+  emoji font is about 11 MB) crosses the network once, not once per session.
 - Background tabs exist only in the engine.
 - The render thread writes one record per frame to the frame ring ("Wire types"); the gates read it.
+- Skia is pinned: `skia-safe =0.157.0`, which reads pictures up to version 110, the version Chromium 156 writes. The
+  client refuses a newer picture by its header; a Chromium upgrade that writes a newer version brings a `skia-safe`
+  upgrade with it. On the TV it links the prebuilt `gl` variant of `skia-safe` (6.3 MB) with FreeType and fontconfig;
+  EGL comes from the Mali driver in `gfx64/` (`research/skp-roundtrip.md`, "aarch64 build").
 
 ## Engine pipeline
 
 `SceneSource` has two implementations behind the same protocol:
 
-1. **Stock Chromium** (milestones M1 and M2): on paint and layer-tree events the engine exports the changed pictures
-   and the layer geometry through DevTools interfaces. Good enough for reading pages with local scrolling; it cannot
-   follow animations or carry clips and effects between layers (`research/skp-roundtrip.md`).
-2. **Patched Chromium** (from M3): the compositor's active tree, pushed on every commit over a local socket: property
-   trees, layers with their pictures and invalidations, wheel regions, video holes, animations; scroll offsets and
-   frame ticks in the other direction (`research/engine-fork.md`, `chromium/PROTOCOL.md`).
+1. **Stock Chromium** (milestones M1 and M2): `chrome.gpuBenchmarking.printToSkPicture` (Chromium started with
+   `--headless=new --enable-gpu-benchmarking`) writes one picture per layer, at the device scale the engine emulates
+   for the client; `LayerTree` events give each layer's transform and size; files and layers are paired by draw order
+   and size, because the pictures carry no layer id. A capture blocks the page for 25 ms to 2 s depending on the page
+   and records about 4000 px above and below the viewport, so the engine captures when a load settles, after DOM
+   changes (debounced), and before a scroll reaches the edge of what was recorded. Pictures hold no clips or opacity
+   between layers, so this source is exact for plain pages and approximate for layered ones
+   (`research/skp-roundtrip.md`, "Capture methods", "Replay results"). New headless has no external frame control.
+2. **Patched Chromium** (from M3): a subclass of the renderer's `ClientLayerTreeHostImpl`, installed by a 12-line
+   factory hook in `cc/trees/layer_tree_host.cc`, sees each commit's layers, property trees, pictures and invalidations
+   before any pixels exist and writes them, with wheel regions, video holes and animations, to a socket the browser
+   process hands each renderer. Scroll offsets come back the other way: the root scroller through
+   `SetSynchronousInputHandlerRootScrollOffset`, others through `ScrollLayerTo`. Pixels for the fallback come from the
+   browser side (`CopyFromSurface`). About 60 changed lines in 9 existing files plus new files under
+   `content/renderer/luma/` (`research/engine-fork.md`, "Recommended patch outline"; the record format in
+   `chromium/TAP.md`).
 
 Everything else the engine does is the same for both: DevTools input injection and tab control, dialogs, downloads,
-permission prompts, extension management and the resource store.
+permission prompts, extension management and the resource store. Page input needs no frame control: wheel, click and
+`Input.insertText` through DevTools reach the page in 15 to 34 ms. AdGuard (MV3) loads by `--load-extension` and
+starts blocking 10 to 14 s after Chromium starts, so the engine holds the first navigation until its rulesets are on.
+Chromium's auto dark mode gives forced-dark pages; reader view is a page the engine builds with Readability.
 
 ## Browser features and where they live
 
@@ -233,8 +270,9 @@ The TV's graphics plane is 1080p and LG's hardware upscales it to the 4K panel; 
 - Everything interactive is rendered by the client at 1920x1080, the same sharpness as LG's own UI.
 - **4K at rest** (experiment, milestone M6): when the page has been still for a moment, the engine renders the viewport
   at 3840x2160 and sends it as one hardware-decodable still frame; the client shows it on the video plane under a
-  transparent graphics plane and returns to the 1080p render the instant anything moves. The gate is a side-by-side
-  photo: the swap must not shift colour or position visibly. Full-screen images and the image viewer use the same path.
+  transparent graphics plane and returns to the 1080p render the instant anything moves. Nothing has yet shown that a
+  single decoded frame can be held on the video plane; gate P4 tests that first. The gate is a side-by-side photo: the
+  swap must not shift colour or position visibly. Full-screen images and the image viewer use the same path.
 
 ## Security
 
@@ -243,8 +281,8 @@ with one exception: fonts are the ones Chromium already sanitized, images are de
 pictures are produced by the engine's serializer. The exception is video, whose original stream goes to LG's hardware
 decoder, as it does in every app on the TV. This removes the unsandboxed-Chromium risk of the app being replaced.
 
-The engine listens only on the LAN. The TV pairs once with a token shown in the engine's log. Phones pair with LumaTV,
-not with the browser.
+The engine listens only on the LAN and pairs TVs as described under "Protocol". Phones pair with LumaTV, not with the
+browser.
 
 ## Decisions
 
@@ -261,17 +299,19 @@ not with the browser.
 | TV app packaged like LumaTV's GeForce NOW app (32-bit feeder as `main`, 64-bit Rust program beside it) | LG lets only the app's main binary use the hardware decoder, and the 64-bit graphics path already exists in `gfx64/`. |
 | The client owns the network; the feeder stays local | One Rust implementation of the protocol; the C feeder keeps its existing socket and messages. |
 | One recording format for fixtures, replay and proofs | Every host test and TV proof uses the same reader, and a session seen on the TV can be replayed on the server. |
+| Stock source by `printToSkPicture` for M1; tracing and `LayerTree` snapshots not used for pictures | It is the only stock interface whose pictures keep fonts and images; tracing lost data and the snapshot log has no glyphs (`research/skp-roundtrip.md`). |
+| `lb-skp` with a C++ shim on both sides | `skia-safe` alone cannot read Chromium's pictures faithfully; with the shim, stripping fonts and images and reading them back is pixel-identical. |
+| Own window code, copied from LumaTV and extended | The toolkit crate cannot be a dependency, and the browser needs pointer, wheel and `text_model`, which the toolkit lacks. |
+| Patch tap is a `ClientLayerTreeHostImpl` subclass behind a factory hook | It sees vector content before raster and touches none of the busiest compositor files, so the patch survives Chromium updates. |
+| Pairing by a six-digit code in an engine pairing window | Nobody types a token on a TV; the window keeps a stranger on the LAN from pairing. |
 
-## Open inputs
+## Known limits
 
-These sections rest on research that `PLAN.md` phase R produces; they are revised when it lands.
-
-| Section | Settled by |
-|---|---|
-| "Engine pipeline" item 1: which stock interface exports pictures, and what it loses | `research/skp-roundtrip.md` (R2) |
-| "Engine pipeline" item 2 and "Local scrolling": where the patch taps the compositor | `research/engine-fork.md` (R3) |
-| "Components", `client/`: window, frame clock, input and theme interfaces the app uses; which feeder to start from | `research/lumatv-platform.md` (R1) |
-| REQ5: whether LumaTV's compositor paces a client app at 120 Hz | `research/lumatv-platform.md` (R1), then gate P1 |
-| "Resolution": what the video plane decodes, and whether a still frame can be held on it | `research/lumatv-platform.md` (R1), then gate P4 |
-| The phone remote has not been accepted on the TV (`research/remote-and-video.md`, 1.1) | U11's gate |
-| UI and key map | `ui-ux.md` (R4) |
+- Scrollers that Chromium scrolls on its main thread, or whose content it paints into the parent layer, cannot scroll
+  on the TV: each step goes to the engine and back (`research/engine-fork.md`, risk 1). How many real pages have them
+  is measured in S2.
+- Chromium's sandbox in Docker needs a seccomp profile and descriptor passing that are not yet tested; running
+  without the sandbox is the fallback, and is reported to the owner if used.
+- The engine still rasterizes and draws every frame it makes, so it costs server CPU even though nothing of it is
+  sent.
+- The phone remote has not been accepted on the TV (`research/remote-and-video.md`, 1.1); U11's gate does that.

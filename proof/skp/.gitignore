@@ -1,0 +1,6 @@
+target/
+out/
+captures/
+profiles/
+*.skp
+*.png

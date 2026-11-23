@@ -4,21 +4,12 @@ State on 2026-11-22. Update this file whenever a package lands or the TV changes
 
 ## Where things stand
 
-- `ARCHITECTURE.md` and `PLAN.md` are written and reviewed once for consistency and for whether a package can be
-  executed from its own text. Nothing of the new browser is built.
-- Phase R: R5 is done (`research/remote-and-video.md`). R1, R2, R3 and R4 stopped unfinished when the provider behind
-  the default worker role ran out of credit. No package worker can be started until that role works again (Cody,
-  Settings, Models: restore the provider's credit, or point the role at a working one).
-- `proof/skp/` holds R2's unfinished capture script and replay crate. It is not committed.
-
-| Job | Package | Reached | Left on disk |
-|---|---|---|---|
-| `LumaTvPlatformFacts` | R1 | read most of the listed sources; wrote nothing | none |
-| `SkpRoundTripSpike` | R2 | replay crate building against `skia-safe`; capture script first run | `proof/skp/`; scratch `/data/agent/cody-data-scratch/23619c433a36/skp` |
-| `EngineForkResearch` | R3 | reading a partial Chromium 156 tree (`cc/`, `services/viz/`) | scratch `/tmp/cs/23619c433a36/cr156` |
-| `TvBrowserUxDesign` | R4 | read the design skill and LumaTV's mocks; wrote nothing | none |
-
-The scratch folders belong to the chat that started the jobs and are deleted once it has been idle for a few days.
+- Research and design are done (`PLAN.md` "Research"). `ARCHITECTURE.md` carries the decisions they settled;
+  `PLAN.md` carries the packages from M0 on. Nothing of the new browser is built.
+- `proof/skp/` is R2's experiment: the capture script and a replay crate whose C++ shim package K2 moves into `skp/`.
+- `mock/` holds the UI mocks. Serve the folder over loopback and open `tv.html#<state>` or `remote.html#<state>`,
+  `?theme=dark|light`. All 15 TV states and 4 phone states were checked in both themes: no browser control or text
+  overflows.
 
 ## On the TV
 
@@ -39,14 +30,9 @@ The scratch folders belong to the chat that started the jobs and are deleted onc
 
 ## Next, in order
 
-1. Make the default worker role usable again (owner).
-2. Finish phase R: in the chat that started them, send each stopped job "continue and finish the acceptance"; in any
-   other chat, start R1 to R4 from their packages in `PLAN.md`, in parallel. Tell a continued R4 job that the phone
-   remote is LumaTV's native one (see the R4 package); its first brief asked for a web remote with its own pairing.
-3. The planning role takes the decisions under "Decisions the research settles" in `PLAN.md`, rewrites the packages
-   they change, revises the sections listed under "Open inputs" in `ARCHITECTURE.md`, deletes that section, commits.
-4. Run M0, wave by wave. Stop at any failed gate and report its numbers.
-5. Continue with M1; then M2 and M3 in parallel; M4; M5; M6. The owner's inputs and when they are needed are in
+1. Ask the owner for the go on L1 and L2 (two LumaTV compositor changes; `PLAN.md` "Owner inputs").
+2. Run M0 wave by wave, starting with K0 (and L1, L2 once approved). Stop at any failed gate and report its numbers.
+3. Continue with M1; then M2 and M3 in parallel; M4; M5; M6. The owner's inputs and when they are needed are in
    `PLAN.md` "Owner inputs".
 
 ## Prompt for the executing model

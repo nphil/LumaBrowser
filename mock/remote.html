@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>LumaBrowser on the phone remote</title>
+<meta name="viewport" content="width=390, initial-scale=1">
+<script>
+/* ?theme=dark|light|ocean|sand  ?text=200  ?motion=reduced  ?mark=1 (dashed outline on everything the browser adds to the stock remote) */
+(function () {
+  var q = new URLSearchParams(location.search), r = document.documentElement;
+  r.dataset.theme = q.get('theme') || 'dark';
+  if (q.get('text') === '200') r.dataset.text = '200';
+  if (q.get('motion') === 'reduced') r.dataset.motion = 'reduced';
+  if (q.has('mark')) r.dataset.mark = '';
+})();
+</script>
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="assets/pages.css">
+<style>
+/* The stock remote is LumaRemoteKit (SwiftUI, paired through LumaTV): 56 pt discs, 12 pt gaps, radii 24 / 14, surface and
+ * surfaceRaised plates, hairline edge. Every colour and size below is a LumaTV token from assets/theme.css (--lu-ph-* is the
+ * phone profile); the faux status bar, home indicator and iOS keyboard are drawn from the same tokens. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 390px; height: 844px; overflow: hidden; background: var(--lu-canvas); }
+body { position: relative; font: 500 var(--lu-ph-size-body)/1.25 var(--lu-font); color: var(--lu-ink); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; }
+.i { width: var(--lu-ph-glyph); height: var(--lu-ph-glyph); fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.i.s { width: 18px; height: 18px; }
+.ell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ink2 { color: var(--lu-ink2); } .pos { color: var(--lu-positive); } .warn { color: var(--lu-warning); } .bad { color: var(--lu-danger); }
+.dis { opacity: .38; }
+
+.rs { position: absolute; inset: 0; display: none; overflow: hidden; background: var(--lu-canvas); }
+.rs.on { display: block; }
+.inert { pointer-events: none; }
+
+/* ---- phone chrome (not part of the app) -------------------------------------------------------------------------- */
+.sb { position: absolute; z-index: 60; left: 0; right: 0; top: 0; height: 47px; pointer-events: none; }
+.sb .time { position: absolute; left: 36px; top: 15px; font: 600 15px/1 var(--lu-font); }
+.sb .sys { position: absolute; right: 28px; top: 17px; display: flex; align-items: center; gap: 6px; }
+.sig { display: flex; align-items: flex-end; gap: 2px; height: 11px; }
+.sig i { width: 3px; border-radius: 1px; background: var(--lu-ink); }
+.sig i:nth-child(1) { height: 4px; } .sig i:nth-child(2) { height: 6px; } .sig i:nth-child(3) { height: 8px; } .sig i:nth-child(4) { height: 11px; }
+.batt { position: relative; width: 25px; height: 12px; padding: 1.5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--lu-ink3); }
+.batt i { display: block; width: 72%; height: 100%; border-radius: 2px; background: var(--lu-ink); }
+.batt::after { content: ""; position: absolute; right: -3.5px; top: 3.5px; width: 2px; height: 5px; border-radius: 0 1px 1px 0; background: var(--lu-ink3); }
+.hi { position: absolute; z-index: 60; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: var(--lu-ink); pointer-events: none; }
+
+/* ---- the stock remote -------------------------------------------------------------------------------------------- */
+.col { position: absolute; left: var(--lu-ph-pad); right: var(--lu-ph-pad); top: 47px; bottom: 42px; display: flex; flex-direction: column; gap: 16px; }
+.top { display: flex; align-items: center; gap: var(--lu-ph-gap); height: var(--lu-ph-key); flex: none; }
+.tv { flex: 1; min-width: 0; text-align: center; }
+.tv b { display: block; font-weight: 600; font-size: var(--lu-ph-size-body); line-height: 1.2; }
+.tv span { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: var(--lu-ph-size-caption); line-height: 1.2; color: var(--lu-ink2); }
+.st { width: 8px; height: 8px; border-radius: 50%; background: var(--lu-positive); flex: none; }
+.disc { display: grid; place-items: center; flex: none; width: var(--lu-ph-key); height: var(--lu-ph-key); border-radius: 50%; background: var(--lu-ph-raised); }
+.disc.flat { background: none; }
+.cap-plate, .modes, .rocker { background: var(--lu-ph-surface); box-shadow: inset 0 0 0 .5px var(--lu-edge); }
+.modes { align-self: center; display: flex; gap: var(--lu-ph-gap); flex: none; border-radius: 999px; }
+.padreg { flex: 1; min-height: 0; display: grid; place-items: center; }
+.pad { width: 340px; height: min(340px, 100%); display: grid; place-items: center; border-radius: var(--lu-ph-radius-surface); color: var(--lu-ink3); }
+.pad .i { width: 34px; height: 34px; stroke-width: 1.3; }
+.cluster { display: flex; justify-content: center; gap: var(--lu-ph-gap); flex: none; }
+.rocker { display: flex; flex-direction: column; gap: var(--lu-ph-gap); border-radius: 999px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, var(--lu-ph-key)); gap: var(--lu-ph-gap); }
+
+/* what the browser adds: the bottom row and row 3 of the key grid */
+.brow { display: flex; gap: var(--lu-ph-gap); height: var(--lu-ph-key); flex: none; }
+.cnt { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; border: 2px solid currentColor; font-weight: 700; font-size: var(--lu-ph-size-caption); line-height: 1; }
+.addr { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 18px; border-radius: 999px; background: var(--lu-ph-raised); overflow: hidden; }
+.addr b { min-width: 0; font-weight: 600; font-size: var(--lu-ph-size-body); }
+.addr .prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--lu-accent); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+html[data-mark] .add { outline: 2px dashed var(--lu-accent); outline-offset: 3px; }
+
+.banner { display: flex; align-items: center; gap: 12px; flex: none; min-height: 60px; padding: 8px 8px 8px 16px; border-radius: var(--lu-ph-radius-control); background: var(--lu-ph-surface); box-shadow: inset 0 0 0 .5px var(--lu-edge); }
+.banner .tx { flex: 1; min-width: 0; font-weight: 500; font-size: var(--lu-ph-size-sub); line-height: 1.3; }
+.banner .tx small { display: block; font-size: var(--lu-ph-size-caption); font-weight: 500; color: var(--lu-ink2); }
+.banner .q { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.banner .gl { display: grid; place-items: center; width: 28px; flex: none; }
+.cap-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; height: 44px; min-width: 44px; padding: 0 18px; border-radius: 999px; background: var(--lu-accent); color: var(--lu-accent-ink); font-weight: 600; font-size: var(--lu-ph-size-sub); }
+.cap-btn.done { background: var(--lu-ph-raised); color: var(--lu-ink); }
+.cap-btn .i { width: 20px; height: 20px; }
+
+.toast { position: absolute; z-index: 25; left: 50%; bottom: 340px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: 350px; padding: 12px 20px; border-radius: 999px; background: var(--lu-ph-raised); box-shadow: inset 0 0 0 .5px var(--lu-edge-raised), 0 8px 24px color-mix(in srgb, var(--lu-ink) 20%, transparent); font-weight: 600; font-size: var(--lu-ph-size-sub); white-space: nowrap; }
+
+/* ---- address and search: suggestions, field and the stock iOS keyboard --------------------------------------------- */
+.sug { flex: none; height: 312px; padding: 6px 0; overflow: hidden; border-radius: var(--lu-ph-radius-surface); background: var(--lu-ph-surface); box-shadow: inset 0 0 0 .5px var(--lu-edge); }
+.srow { position: relative; display: flex; align-items: center; gap: 14px; height: 60px; padding: 0 6px 0 18px; }
+.srow + .srow::before { content: ""; position: absolute; left: 54px; right: 0; top: 0; height: .5px; background: var(--lu-edge); }
+.srow .gl { color: var(--lu-ink2); }
+.srow .tx { flex: 1; min-width: 0; }
+.srow .tx b { display: block; font-weight: 500; font-size: var(--lu-ph-size-body); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .tx b em { font-style: normal; font-weight: 700; }
+.srow .tx small { display: block; font-size: 13px; line-height: 1.25; color: var(--lu-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .fillbtn { display: grid; place-items: center; width: 44px; height: 44px; color: var(--lu-ink2); }
+.field { position: absolute; z-index: 5; left: var(--lu-ph-pad); right: var(--lu-ph-pad); top: 518px; height: var(--lu-ph-key); display: flex; gap: var(--lu-ph-gap); }
+.fbox { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; border-radius: var(--lu-ph-radius-control); background: var(--lu-ph-raised); }
+.fbox .t { flex: 1; min-width: 0; font-weight: 500; font-size: var(--lu-ph-size-body); white-space: nowrap; overflow: hidden; }
+.fbox .t s { text-decoration: none; color: var(--lu-ink2); }
+.fbox .xbtn { display: grid; place-items: center; width: 44px; height: 44px; color: var(--lu-ink2); }
+.caret { display: inline-block; width: 2px; height: 22px; margin: 0 1px -5px; border-radius: 1px; background: var(--lu-accent); }
+.kb { position: absolute; z-index: 10; left: 0; right: 0; bottom: 0; height: 258px; background: var(--lu-ph-raised); box-shadow: 0 -.5px 0 var(--lu-edge); }
+.kr { position: absolute; left: 0; right: 0; height: 42px; display: flex; justify-content: center; gap: 6px; }
+.k { display: grid; place-items: center; height: 42px; min-width: 33px; border-radius: 6px; background: var(--lu-raise-fill); font-weight: 400; font-size: 22px; box-shadow: 0 1px 0 var(--lu-edge-raised); }
+.k.sp { background: var(--lu-ph-surface); font-size: 15px; font-weight: 500; }
+.k.go { background: var(--lu-accent); color: var(--lu-accent-ink); font-size: 17px; font-weight: 600; }
+.kb .gm { position: absolute; top: 224px; color: var(--lu-ink2); }
+.kb .gm .i { width: 24px; height: 24px; }
+
+/* ---- sheets: Tabs, More ---------------------------------------------------------------------------------------------- */
+.scrim { position: absolute; z-index: 20; inset: 0; background: var(--lu-scrim); }
+.sht { position: absolute; z-index: 30; left: 0; right: 0; bottom: 0; top: 64px; border-radius: 24px 24px 0 0; background: var(--lu-canvas); box-shadow: 0 -.5px 0 var(--lu-edge-raised), 0 -16px 48px color-mix(in srgb, var(--lu-ink) 16%, transparent); overflow: hidden; }
+.grab { display: block; width: 36px; height: 5px; margin: 8px auto 0; border-radius: 3px; background: var(--lu-ink3); }
+.shead { display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 16px; margin-top: 6px; }
+.shead .tt { flex: 1; min-width: 0; }
+.shead h2 { font-weight: 700; font-size: var(--lu-ph-size-title); line-height: 1.15; }
+.shead small { display: block; font-size: var(--lu-ph-size-caption); font-weight: 500; color: var(--lu-ink2); }
+.group { margin: 0 var(--lu-ph-pad); border-radius: var(--lu-ph-radius-surface); background: var(--lu-ph-surface); box-shadow: inset 0 0 0 .5px var(--lu-edge); overflow: hidden; }
+.group + .group { margin-top: 12px; }
+.glabel { margin: 18px 32px 8px; font-size: var(--lu-ph-size-caption); font-weight: 600; color: var(--lu-ink2); }
+.trow { position: relative; display: flex; align-items: center; gap: 12px; height: 72px; padding: 0 8px 0 16px; }
+.trow + .trow::before, .mrow + .mrow::before { content: ""; position: absolute; left: 68px; right: 0; top: 0; height: .5px; background: var(--lu-edge); }
+.trow .tt { flex: 1; min-width: 0; }
+.trow b { display: block; font-weight: 600; font-size: var(--lu-ph-size-body); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trow .h { display: block; font-size: 13px; line-height: 1.25; color: var(--lu-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trow .gl { color: var(--lu-ink2); }
+.trow .xbtn { display: grid; place-items: center; width: 44px; height: 44px; flex: none; color: var(--lu-ink2); }
+.trow.asleep .fav { opacity: .55; }
+.trow .fav.here { box-shadow: 0 0 0 2px var(--lu-ph-surface), 0 0 0 4px var(--lu-accent); }
+.trow .loadbar { position: absolute; left: 16px; right: 0; bottom: 0; height: 3px; background: var(--lu-track-off); }
+.trow .loadbar::before { content: ""; position: absolute; inset: 0; background: var(--lu-accent); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+.mrow { position: relative; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 16px; font-size: var(--lu-ph-size-body); font-weight: 500; }
+.mrow .grow { flex: 1; min-width: 0; }
+.mrow .i { color: var(--lu-ink); }
+.mrow .go { display: grid; place-items: center; }
+.mrow .go, .mrow .go .i { color: var(--lu-ink2); }
+.mrow.bad { color: var(--lu-ink); }
+.mrow.bad .i { color: var(--lu-danger); }
+.mrow + .mrow::before { left: 52px; }
+.sw { position: relative; width: 51px; height: 31px; border-radius: 999px; background: var(--lu-track-off); box-shadow: inset 0 0 0 1px var(--lu-edge); flex: none; }
+.sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--lu-focus); box-shadow: var(--lu-knob-shadow); }
+.step { display: flex; align-items: center; flex: none; height: 44px; border-radius: 999px; background: var(--lu-ph-raised); }
+.step button { display: grid; place-items: center; width: 44px; height: 44px; }
+.step span { min-width: 52px; text-align: center; font-weight: 600; font-size: var(--lu-ph-size-sub); font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div id="screens"></div>
+<div class="sb" data-phone><span class="time">9:41</span><span class="sys"><span class="sig"><i></i><i></i><i></i><i></i></span><span class="batt"><i></i></span></span></div>
+<div class="hi" data-phone></div>
+<script src="assets/icons.js"></script>
+<script>
+(function () {
+  var I = function (n, c) { return '<svg class="i' + (c ? ' ' + c : '') + '" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; };
+  var disc = function (icon, label, cls) { return '<button class="disc' + (cls ? ' ' + cls : '') + '" aria-label="' + label + '">' + I(icon) + '</button>'; };
+
+  /* the same seven tabs as tv.html */
+  var TABS = [
+    { f: 'a', l: 'P', t: 'Panel care on a living-room OLED', h: 'pixelnotes.dev', here: 1 },
+    { f: 'b', l: 'N', t: 'Northlight', h: 'northlight.news' },
+    { f: 'c', l: 'T', t: 'Moonrise over the Sound', h: 'tidepool.video', play: 1 },
+    { f: 'd', l: 'O', t: 'Open Atlas', h: 'openatlas.org' },
+    { f: 'e', l: 'R', t: 'Ownership and borrowing', h: 'rustbook.dev' },
+    { f: 'ff', l: 'H', t: 'Loading\u2026', h: 'harbor.market', load: .4 },
+    { f: 'g', l: 'K', t: 'Weeknight dinners', h: 'kitchentable.cooking', sleep: 1 }
+  ];
+
+  /* ---- the stock remote with the browser's additions --------------------------------------------------------------- */
+  function remote(o) {
+    o = o || {};
+    var off = o.state === 'offline', load = o.state === 'loading';
+    var banner = o.banner || '';
+    if (off) banner = '<div class="banner add"><span class="gl warn">' + I('server-off') + '</span><div class="tx">The browser engine isn\u2019t answering.</div><button class="cap-btn">Retry</button></div>';
+    var d = off ? ' dis' : '';
+    var pill = off
+      ? '<span class="st" style="background:var(--lu-warning)"></span><b class="ell">Not answering</b>'
+      : I('lock', 's ink2') + '<b class="ell">pixelnotes.dev</b>' + (load ? '<i class="prog" style="--p:.62"></i>' : '');
+    return '' +
+      '<div class="top">' + disc('close', 'Close the remote') +
+        '<div class="tv"><b class="ell">Living room</b><span><i class="st"></i>Connected</span></div>' + disc('power', 'Power') + '</div>' +
+      banner +
+      '<div class="modes">' + disc('dpad', 'D-pad', 'flat') + disc('hand', 'Touchpad') + disc('cursor', 'Air mouse', 'flat') + '</div>' +
+      '<div class="padreg"><div class="pad cap-plate" role="img" aria-label="Touchpad">' + I('hand') + '</div></div>' +
+      '<div class="cluster">' +
+        '<div class="rocker">' + disc('plus', 'Volume up', 'flat') + disc('volume', 'Mute', 'flat') + disc('minus', 'Volume down', 'flat') + '</div>' +
+        '<div class="grid3">' +
+          disc('key-back', 'Back') + disc('key-home', 'Home') + disc('gear', 'Settings') +
+          disc('rewind', 'Rewind') + disc('play-pause', 'Play or pause') + disc('fast-forward', 'Fast forward') +
+          disc('forward', 'Forward', 'add' + d) + disc(load ? 'close' : 'reload', load ? 'Stop' : 'Reload', 'add' + d) + disc('keyboard', 'Keyboard') +
+        '</div>' +
+        '<div class="rocker">' + disc('chevron-up', 'Channel up', 'flat') + disc('list', 'Channels', 'flat') + disc('chevron-down', 'Channel down', 'flat') + '</div>' +
+      '</div>' +
+      '<div class="brow">' +
+        '<button class="disc add' + d + '" aria-label="Tabs"><span class="cnt">7</span></button>' +
+        '<button class="addr add" aria-label="Address and search">' + pill + '</button>' +
+        disc('more', 'More') +
+      '</div>';
+  }
+  function selBanner(done) {
+    return '<div class="banner add"><div class="tx"><small>Selected on the TV</small><span class="q">Screen shift nudges the whole picture by a pixel or two every few minutes.</span></div>' +
+      (done ? '<button class="cap-btn done"><span class="pos" style="display:inline-flex">' + I('check') + '</span>Copied</button>'
+            : '<button class="cap-btn">' + I('copy') + 'Copy</button>') + '</div>';
+  }
+
+  /* ---- address and search ------------------------------------------------------------------------------------------ */
+  function sRow(icon, title, sub) {
+    return '<div class="srow"><span class="gl">' + I(icon) + '</span><div class="tx"><b>' + title + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</div><button class="fillbtn" aria-label="Put in the field">' + I('arrow-up-left', 's') + '</button></div>';
+  }
+  function keyboard() {
+    var k = function (c, cls, w) { return '<span class="k' + (cls ? ' ' + cls : '') + '"' + (w ? ' style="width:' + w + 'px"' : '') + '>' + c + '</span>'; };
+    var row = function (y, keys) { return '<div class="kr" style="top:' + y + 'px">' + keys + '</div>'; };
+    var letters = function (s) { return s.split('').map(function (c) { return k(c); }).join(''); };
+    return '<div class="kb" aria-label="iOS URL keyboard">' +
+      row(8, letters('qwertyuiop')) + row(62, letters('asdfghjkl')) +
+      row(116, k(I('shift'), 'sp', 46) + letters('zxcvbnm') + k(I('backspace'), 'sp', 46)) +
+      row(170, k('123', 'sp', 46) + k('.', '', 46) + k('/', '', 46) + k('.com', '', 86) + k('Go', 'go', 136)) +
+      '<span class="gm" style="left:22px">' + I('globe') + '</span><span class="gm" style="right:22px">' + I('mic') + '</span></div>';
+  }
+  function urlScreen() {
+    return '<div class="col">' +
+      '<div class="top">' + disc('close', 'Close the remote') +
+        '<div class="tv"><b class="ell">Living room</b><span><i class="st"></i>Connected</span></div>' + disc('power', 'Power') + '</div>' +
+      '<div class="banner add"><div class="tx"><small>Link on this phone</small><span class="ell">pixelnotes.dev/guides/screen-shift</span></div><button class="cap-btn">' + I('send') + 'Send</button></div>' +
+      '<div class="sug add">' +
+        sRow('globe', '<em>pixelnotes</em>.dev', 'Go to site') +
+        sRow('search', '<em>pixelnotes</em> oled burn-in guide') +
+        sRow('history', 'Panel care on a living-room OLED', 'pixelnotes.dev/guides') +
+        sRow('star', 'Pixel Notes: panel reviews', 'pixelnotes.dev/reviews') +
+        sRow('search', '<em>pixelnotes</em> newsletter') +
+      '</div></div>' +
+      '<div class="field add"><div class="fbox">' + I('search', 's ink2') + '<span class="t">pixelnotes<i class="caret"></i><s>.dev</s></span><button class="xbtn" aria-label="Clear">' + I('close', 's') + '</button></div>' +
+        disc('chevron-down', 'Hide the keyboard', 'flat') + '</div>' +
+      keyboard();
+  }
+
+  /* ---- sheets -------------------------------------------------------------------------------------------------------- */
+  function tabsSheet() {
+    var rows = TABS.map(function (t) {
+      return '<div class="trow' + (t.sleep ? ' asleep' : '') + '"><span class="fav ' + t.f + (t.here ? ' here' : '') + '" style="width:40px;height:40px;font-size:22px">' + t.l + '</span>' +
+        '<div class="tt"><b>' + t.t + '</b><span class="h">' + t.h + '</span></div>' +
+        (t.play ? '<span class="gl" title="Playing">' + I('volume', 's') + '</span>' : '') + (t.sleep ? '<span class="gl" title="Asleep">' + I('moon', 's') + '</span>' : '') +
+        '<button class="xbtn" aria-label="Close tab">' + I('close', 's') + '</button>' + (t.load ? '<i class="loadbar" style="--p:' + t.load + '"></i>' : '') + '</div>';
+    }).join('');
+    return '<div class="scrim"></div><div class="sht add"><i class="grab"></i>' +
+      '<div class="shead"><div class="tt"><h2>Tabs</h2><small>7 open, 1 asleep</small></div><button class="cap-btn">' + I('plus') + 'New tab</button></div>' +
+      '<div class="group">' + rows + '</div>' +
+      '<div class="group"><button class="mrow bad" style="width:100%">' + I('trash') + '<span class="grow" style="text-align:left">Close all tabs</span></button></div></div>';
+  }
+  function moreSheet() {
+    var row = function (icon, label, tail) { return '<div class="mrow">' + I(icon) + '<span class="grow">' + label + '</span>' + (tail || '<span class="go">' + I('chevron-right', 's') + '</span>') + '</div>'; };
+    return '<div class="scrim"></div><div class="sht"><i class="grab"></i>' +
+      '<div class="shead"><div class="tt"><h2>More</h2></div></div>' +
+      '<div class="glabel add" style="display:inline-block;margin-bottom:8px;margin-top:2px">Browser</div>' +
+      '<div class="group add">' +
+        row('plus', 'New tab') + row('search', 'Find in page') + row('book', 'Reader view') +
+        row('monitor', 'Desktop site', '<i class="sw"></i>') +
+        row('zoom-in', 'Zoom', '<span class="step"><button aria-label="Smaller">' + I('minus', 's') + '</button><span>125%</span><button aria-label="Larger">' + I('plus', 's') + '</button></span>') +
+        row('send', 'Send a link to the TV') +
+      '</div>' +
+      '<div class="glabel">Television</div>' +
+      '<div class="group">' + row('tv', 'Input') + row('grid', 'Guide') + '</div></div>';
+  }
+  var toast = '<div class="toast"><span class="pos" style="display:inline-flex">' + I('check') + '</span>Sent. Opening in a new tab.</div>';
+
+  var SCREENS = {
+    trackpad: ['Remote in front of the browser', '<div class="col">' + remote() + '</div>'],
+    url: ['Address and search', urlScreen()],
+    tabs: ['Tabs', '<div class="col inert">' + remote() + '</div>' + tabsSheet()],
+    selection: ['Text selected on the TV', '<div class="col">' + remote({ banner: selBanner(false) }) + '</div>'],
+    'selection-copied': ['Selection copied', '<div class="col">' + remote({ banner: selBanner(true) }) + '</div>'],
+    more: ['More', '<div class="col inert">' + remote() + '</div>' + moreSheet()],
+    sent: ['Link sent to the TV', '<div class="col">' + remote() + '</div>' + toast],
+    loading: ['Page loading', '<div class="col">' + remote({ state: 'loading' }) + '</div>'],
+    offline: ['Engine not answering', '<div class="col">' + remote({ state: 'offline' }) + '</div>']
+  };
+  var host = document.getElementById('screens');
+  Object.keys(SCREENS).forEach(function (id) {
+    var s = document.createElement('section');
+    s.className = 'rs'; s.id = 's-' + id; s.dataset.title = SCREENS[id][0]; s.innerHTML = SCREENS[id][1];
+    host.appendChild(s);
+  });
+  function route() {
+    var h = (location.hash || '#trackpad').slice(1);
+    if (!SCREENS[h]) h = 'trackpad';
+    Array.prototype.forEach.call(document.querySelectorAll('.rs'), function (s) { s.classList.toggle('on', s.id === 's-' + h); });
+    document.title = 'LumaBrowser phone remote: ' + SCREENS[h][0];
+    window.__ready = true;
+  }
+  addEventListener('hashchange', route);
+  route();
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(function () { window.__fonts = true; });
+})();
+</script>
+</body>
+</html>
